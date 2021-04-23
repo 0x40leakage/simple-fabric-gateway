@@ -2,9 +2,19 @@ package main
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
+	"encoding/hex"
+	"encoding/pem"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
+	"github.com/cloudflare/cfssl/crl"
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
 	fabmsp "github.com/hyperledger/fabric-protos-go/msp"
@@ -14,7 +24,11 @@ import (
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/resmgmt"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fabsdk"
+	"github.com/hyperledger/fabric/bccsp"
+	cspsigner "github.com/hyperledger/fabric/bccsp/signer"
+	"github.com/hyperledger/fabric/bccsp/sw"
 	"github.com/hyperledger/fabric/common/channelconfig"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -42,8 +56,11 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/channelconfig/insertgoodcrl", insertGoodCRL)
+	mux.HandleFunc("/channelconfig/insertfrozencrl", insertFrozenCRL)
+	mux.HandleFunc("/channelconfig/insertlockedcrl", insertLockedCRL)
 	mux.HandleFunc("/channelconfig/insertbadcrl", insertBadCRL)
 	mux.HandleFunc("/channelconfig/cleancrl", cleanCRL)
+	mux.HandleFunc("/fab/operate", operateFabricResource)
 
 	mux.HandleFunc("/common/gencrl", genValidCRL)
 	log.Fatal(http.ListenAndServe(":12345", mux))
@@ -94,9 +111,9 @@ func New(configFilePath string) (*MyClient, error) {
 	}, nil
 }
 
-// func (msp *bccspmsp) setupCRLs(conf *m.FabricMSPConfig) error {
+// !!! func (msp *bccspmsp) setupCRLs(conf *m.FabricMSPConfig) error {
 
-func UpdateCRLOfChannelConfig(crl, channelName string) error {
+func UpdateCRLOfChannelConfig(at actionType, certPath, channelName string) error {
 	cfgBlk, err := gcli.RC.QueryConfigBlockFromOrderer("mychannel", resmgmt.WithOrdererEndpoint("orderer0.example.com"))
 	if err != nil {
 		return err
@@ -128,18 +145,30 @@ func UpdateCRLOfChannelConfig(crl, channelName string) error {
 	if err := proto.Unmarshal(origFabMSPCfg, &fabMSPCfg); err != nil {
 		return err
 	}
-	// 确保 crl 记录只有一条
+	// 限制 crl 记录只有一条
 	fabMSPCfg.RevocationList = nil
-	if crl != "" {
+	switch at {
+	case ADD_VALID_CRL, ADD_FROZEN_CRL, ADD_LOCKED_CRL:
 		// StdEncoding 会加 padding（=）
 		// https://stackoverflow.com/a/36571117/6902525
 		// crlEncoded := base64.RawStdEncoding.EncodeToString([]byte(crl))
 		// log.Printf("crl encoded: %s\n", crlEncoded)
-		// fabMSPCfg.RevocationList = append(fabMSPCfg.RevocationList, []byte(crlEncoded))
 
-		// 不用编码
-		fabMSPCfg.RevocationList = append(fabMSPCfg.RevocationList, []byte(crl))
+		// !!! 用 []byte 转换 string 类型的 crl 不行
+		// !!! 不用编码
+		crlBytes, err := genCRLInternal(at, certPath)
+		if err != nil {
+			return err
+		}
+		fabMSPCfg.RevocationList = append(fabMSPCfg.RevocationList, crlBytes)
+	case ADD_INVALID_CRL:
+		fabMSPCfg.RevocationList = append(fabMSPCfg.RevocationList, []byte(badCRL))
+	case CLEAN_CRL:
+	default:
+		return fmt.Errorf("upsupported action type")
+
 	}
+
 	updatedFabMSPCfg, err := proto.Marshal(&fabMSPCfg)
 	if err != nil {
 		return err
@@ -188,6 +217,178 @@ func UpdateCRLOfChannelConfig(crl, channelName string) error {
 
 	return nil
 }
+func genCRLInternal(at actionType, certPath string) ([]byte, error) {
+	cert, err := getX509Cert(certPath)
+	if err != nil {
+		return nil, err
+	}
+
+	org1CACert, err := getX509Cert(org1CACertPath)
+	if err != nil {
+		return nil, err
+	}
+	// log.Printf("Does admin1's AKI equal ca's ski? %v\n%x\n%v\n", bytes.Equal(org1AdminCert.AuthorityKeyId, org1CACert.SubjectKeyId), org1CACert.SubjectKeyId, org1CACert.SubjectKeyId)
+
+	signer, err := genSigner(org1CACert)
+	if err != nil {
+		return nil, err
+	}
+
+	var exts []pkix.Extension
+	switch at {
+	case ADD_FROZEN_CRL, ADD_LOCKED_CRL:
+		v, err := asn1.Marshal(mapper[at])
+		if err != nil {
+			return nil, err
+		}
+		ext := pkix.Extension{
+			Id:       asn1.ObjectIdentifier{2, 5, 29, 45},
+			Critical: false,
+			Value:    v,
+		}
+		exts = append(exts, ext)
+	case ADD_VALID_CRL:
+	default:
+		return nil, fmt.Errorf("unsupported action")
+	}
+
+	rt := time.Now().UTC()
+	expiry := rt.Add(time.Hour)
+	revokedCerts := []pkix.RevokedCertificate{{
+		SerialNumber:   cert.SerialNumber,
+		RevocationTime: rt,
+		Extensions:     exts,
+	}}
+
+	crl, err := crl.CreateGenericCRL(revokedCerts, signer, org1CACert, expiry)
+	// log.Printf("%#v\n", crl)
+	blk := &pem.Block{Bytes: crl, Type: "X509 CRL"}
+	crlBytes := pem.EncodeToMemory(blk)
+
+	return crlBytes, nil
+}
+
+// 撤销 Org1.Admin 证书
+func GenCRL() (string, error) {
+	admin1Org1CertPath := "/home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts/Admin@org1.example.com-cert.pem"
+	org1AdminCert, err := getX509Cert(admin1Org1CertPath)
+	if err != nil {
+		return "", err
+	}
+	org1CACertPath := "/home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/ca/ca.org1.example.com-cert.pem"
+	// org1 ca's SKI: 7b523d6dcc5a0768dd8b18e463273470032036c4e1dcd7450e4ad26d0bcd89fa
+	// [123 82 61 109 204 90 7 104 221 139 24 228 99 39 52 112 3 32 54 196 225 220 215 69 14 74 210 109 11 205 137 250]
+
+	org1CACert, err := getX509Cert(org1CACertPath)
+	if err != nil {
+		return "", err
+	}
+	log.Printf("Does admin1's AKI equal ca's ski? %v\n%x\n%v\n", bytes.Equal(org1AdminCert.AuthorityKeyId, org1CACert.SubjectKeyId), org1CACert.SubjectKeyId, org1CACert.SubjectKeyId)
+
+	signer, err := genSigner(org1CACert)
+	if err != nil {
+		return "", err
+	}
+
+	rt := time.Now().UTC()
+	expiry := rt.Add(time.Hour)
+	revokedCerts := []pkix.RevokedCertificate{{
+		SerialNumber:   org1AdminCert.SerialNumber,
+		RevocationTime: rt,
+	}}
+
+	crl, err := crl.CreateGenericCRL(revokedCerts, signer, org1CACert, expiry)
+	log.Printf("%#v\n", crl)
+	blk := &pem.Block{Bytes: crl, Type: "X509 CRL"}
+	crlBytes := pem.EncodeToMemory(blk)
+
+	// parseCRL(crlBytes, crl)
+
+	return string(crlBytes), nil
+}
+
+func genSigner(cert *x509.Certificate) (crypto.Signer, error) {
+	org1CAksPath := "/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/org1CAKeystore"
+	csp, err := sw.NewDefaultSecurityLevel(org1CAksPath)
+	if err != nil {
+		return nil, err
+	}
+	return getSignerFromCert(cert, csp)
+}
+
+func getSignerFromCert(cert *x509.Certificate, csp bccsp.BCCSP) (crypto.Signer, error) {
+	if csp == nil {
+		return nil, errors.New("CSP was not initialized")
+	}
+	// get the public key in the right format
+	certPubK, err := csp.KeyImport(cert, &bccsp.X509PublicKeyImportOpts{Temporary: true})
+	if err != nil {
+		return nil, errors.WithMessage(err, "Failed to import certificate's public key")
+	}
+	// Get the key given the SKI value
+	ski := certPubK.SKI()
+	privateKey, err := csp.GetKey(ski)
+	if err != nil {
+		return nil, errors.WithMessage(err, "Could not find matching private key for SKI")
+	}
+	// BCCSP returns a public key if the private key for the SKI wasn't found, so
+	// we need to return an error in that case.
+	if !privateKey.Private() {
+		return nil, errors.Errorf("The private key associated with the certificate with SKI '%s' was not found", hex.EncodeToString(ski))
+	}
+	// Construct and initialize the signer
+	signer, err := cspsigner.New(csp, privateKey)
+	if err != nil {
+		return nil, errors.WithMessage(err, "Failed to load ski from bccsp")
+	}
+	return signer, nil
+}
+
+func getX509Cert(certPath string) (*x509.Certificate, error) {
+	certPEMBytes, err := ioutil.ReadFile(certPath)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(certPEMBytes)
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return cert, nil
+}
+
+type authKeyId struct {
+	Id []byte `asn1:"optional,tag:0"`
+}
+
+// type authorityKeyIdentifier struct {
+func parseCRL(crl []byte, orgCRL []byte) {
+	// 判断 crl 内容是否一致
+	block, _ := pem.Decode(crl)
+	decodedCRLBytes := block.Bytes
+	log.Printf("Bytes stay the same: %v\n", bytes.Equal(decodedCRLBytes, orgCRL))
+
+	cl, err := x509.ParseCRL(crl)
+	if err != nil {
+		log.Println(err)
+	}
+	caSKIBytes := []byte{123, 82, 61, 109, 204, 90, 7, 104, 221, 139, 24, 228, 99, 39, 52, 112, 3, 32, 54, 196, 225, 220, 215, 69, 14, 74, 210, 109, 11, 205, 137, 250}
+	bb, _ := asn1.Marshal(authKeyId{Id: caSKIBytes})
+	log.Printf("%#v\n%v\n", cl, cl.TBSCertList.Extensions[0].Value)
+	log.Println("-------", bytes.Equal(bb, cl.TBSCertList.Extensions[0].Value)) // true
+	// [48 34 128 32 123 82 61 109 204 90 7 104 221 139 24 228 99 39 52 112 3 32 54 196 225 220 215 69 14 74 210 109 11 205 137 250]
+}
+
+// func printCRLaki(crl []byte) {
+// 	var cl pkix.CertificateList
+// 	if _, err := asn1.Unmarshal(crl, &cl); err != nil {
+// 		log.Println(err)
+// 		return
+// 	}
+// 	log.Println(len(cl.TBSCertList.Extensions))
+// }
 
 /* func UpdateChannelConfig() {
 	cfgBlk, err := gcli.RC.QueryConfigBlockFromOrderer("mychannel", resmgmt.WithOrdererEndpoint("orderer0.example.com"))

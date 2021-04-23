@@ -10,11 +10,13 @@ github.com/OpenPeeDeeP/depguard
 github.com/beorn7/perks/quantile
 # github.com/bgentry/speakeasy v0.1.0
 github.com/bgentry/speakeasy
-# github.com/cloudflare/cfssl v1.4.1
+# github.com/cloudflare/cfssl v1.5.0
+## explicit
 github.com/cloudflare/cfssl/api
 github.com/cloudflare/cfssl/auth
 github.com/cloudflare/cfssl/certdb
 github.com/cloudflare/cfssl/config
+github.com/cloudflare/cfssl/crl
 github.com/cloudflare/cfssl/crypto/pkcs7
 github.com/cloudflare/cfssl/csr
 github.com/cloudflare/cfssl/errors
@@ -484,6 +486,7 @@ github.com/hyperledger/fabric-sdk-go/pkg/core/logging/metadata
 github.com/hyperledger/fabric-sdk-go/pkg/core/logging/modlog
 github.com/hyperledger/fabric-sdk-go/pkg/core/mocks
 github.com/hyperledger/fabric-sdk-go/pkg/fab
+github.com/hyperledger/fabric-sdk-go/pkg/fab/ccpackager/gopackager
 github.com/hyperledger/fabric-sdk-go/pkg/fab/ccpackager/lifecycle
 github.com/hyperledger/fabric-sdk-go/pkg/fab/channel
 github.com/hyperledger/fabric-sdk-go/pkg/fab/channel/membership
@@ -538,6 +541,8 @@ github.com/hyperledger/fabric-sdk-go/pkg/util/test
 github.com/hyperledger/fabric-sdk-go/test/metadata
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
+# github.com/jmoiron/sqlx v1.2.0
+github.com/jmoiron/sqlx/types
 # github.com/jonboulle/clockwork v0.1.0
 github.com/jonboulle/clockwork
 # github.com/json-iterator/go v1.1.7
@@ -584,6 +589,7 @@ github.com/olekukonko/tablewriter
 # github.com/pelletier/go-toml v1.8.0
 github.com/pelletier/go-toml
 # github.com/pkg/errors v0.8.1
+## explicit
 github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
@@ -636,19 +642,27 @@ github.com/tmc/grpc-websocket-proxy/wsproxy
 github.com/ultraware/funlen
 # github.com/urfave/cli v1.20.0
 github.com/urfave/cli
-# github.com/weppos/publicsuffix-go v0.5.0
+# github.com/weppos/publicsuffix-go v0.13.0
 github.com/weppos/publicsuffix-go/publicsuffix
 # github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2
 github.com/xiang90/probing
-# github.com/zmap/zcrypto v0.0.0-20190729165852-9051775e6a2e
+# github.com/zmap/zcrypto v0.0.0-20200911161511-43ff0ea04f21
 github.com/zmap/zcrypto/json
 github.com/zmap/zcrypto/util
 github.com/zmap/zcrypto/x509
 github.com/zmap/zcrypto/x509/ct
 github.com/zmap/zcrypto/x509/pkix
-# github.com/zmap/zlint v0.0.0-20190806154020-fd021b4cfbeb
-github.com/zmap/zlint/lints
-github.com/zmap/zlint/util
+# github.com/zmap/zlint/v2 v2.2.1
+github.com/zmap/zlint/v2
+github.com/zmap/zlint/v2/lint
+github.com/zmap/zlint/v2/lints/apple
+github.com/zmap/zlint/v2/lints/cabf_br
+github.com/zmap/zlint/v2/lints/cabf_ev
+github.com/zmap/zlint/v2/lints/community
+github.com/zmap/zlint/v2/lints/etsi
+github.com/zmap/zlint/v2/lints/mozilla
+github.com/zmap/zlint/v2/lints/rfc
+github.com/zmap/zlint/v2/util
 # go.etcd.io/etcd v3.3.13+incompatible
 go.etcd.io/etcd
 go.etcd.io/etcd/etcdctl
