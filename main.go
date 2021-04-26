@@ -264,6 +264,9 @@ func genCRLInternal(at actionType, certPath string) ([]byte, error) {
 	// log.Printf("%#v\n", crl)
 	blk := &pem.Block{Bytes: crl, Type: "X509 CRL"}
 	crlBytes := pem.EncodeToMemory(blk)
+	// if err := ioutil.WriteFile("../fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/msp/crls/crl.pem", crlBytes, 0644); err != nil {
+	// 	return nil, err
+	// }
 
 	return crlBytes, nil
 }
