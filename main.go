@@ -62,7 +62,7 @@ func main() {
 	mux.HandleFunc("/channelconfig/cleancrl", cleanCRL)
 	mux.HandleFunc("/fab/operate", operateFabricResource)
 
-	mux.HandleFunc("/common/gencrl", genValidCRL)
+	// mux.HandleFunc("/common/gencrl", genValidCRL)
 	log.Fatal(http.ListenAndServe(":12345", mux))
 }
 
@@ -160,6 +160,7 @@ func UpdateCRLOfChannelConfig(at actionType, certPath, channelName string) error
 		if err != nil {
 			return err
 		}
+		log.Printf("generated %s crl:\n%s\n", mapper[at], crlBytes)
 		fabMSPCfg.RevocationList = append(fabMSPCfg.RevocationList, crlBytes)
 	case ADD_INVALID_CRL:
 		fabMSPCfg.RevocationList = append(fabMSPCfg.RevocationList, []byte(badCRL))

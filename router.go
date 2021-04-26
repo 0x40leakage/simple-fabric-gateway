@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -45,15 +44,15 @@ func cleanCRL(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "ok")
 }
 
-func genValidCRL(w http.ResponseWriter, r *http.Request) {
-	crl, err := GenCRL()
-	if err != nil {
-		io.WriteString(w, err.Error())
-		return
-	}
-	log.Printf("\n%s\n", crl)
-	io.WriteString(w, "ok")
-}
+// func genValidCRL(w http.ResponseWriter, r *http.Request) {
+// 	crl, err := GenCRL()
+// 	if err != nil {
+// 		io.WriteString(w, err.Error())
+// 		return
+// 	}
+// 	log.Printf("\n%s\n", crl)
+// 	io.WriteString(w, "ok")
+// }
 
 func operateFabricResource(w http.ResponseWriter, r *http.Request) {
 	if err := opFab(); err != nil {
