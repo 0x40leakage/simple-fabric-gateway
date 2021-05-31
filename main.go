@@ -48,6 +48,8 @@ type MyClient struct {
 }
 
 func main() {
+	// genCRLsample()
+
 	var err error
 	gcli, err = New(configFilePath)
 	if err != nil {
@@ -270,6 +272,17 @@ func genCRLInternal(at actionType, certPath string) ([]byte, error) {
 	// }
 
 	return crlBytes, nil
+}
+
+func genCRLsample() {
+	certPath := fmt.Sprintf(userCertTemplate, ADMIN)
+	v, _ := genCRLInternal(ADD_VALID_CRL, certPath)
+	ioutil.WriteFile("crl.pem", v, 0644)
+	f, _ := genCRLInternal(ADD_FROZEN_CRL, certPath)
+	ioutil.WriteFile(mapper[ADD_FROZEN_CRL]+".pem", f, 0644)
+	l, _ := genCRLInternal(ADD_LOCKED_CRL, certPath)
+	ioutil.WriteFile(mapper[ADD_LOCKED_CRL]+".pem", l, 0644)
+	log.Printf("valid, frozen, locked:\n%s\n%s\n%s\n", v, f, l)
 }
 
 // 撤销 Org1.Admin 证书

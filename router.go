@@ -21,7 +21,7 @@ func insertFrozenCRL(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "ok")
 }
 func insertLockedCRL(w http.ResponseWriter, r *http.Request) {
-	if err := UpdateCRLOfChannelConfig(ADD_LOCKED_CRL, fmt.Sprintf(userCertTemplate, ADMIN), "mychannel"); err != nil {
+	if err := UpdateCRLOfChannelConfig(ADD_LOCKED_CRL, fmt.Sprintf(userCertTemplate, USER1), "mychannel"); err != nil {
 		io.WriteString(w, err.Error())
 		return
 	}
