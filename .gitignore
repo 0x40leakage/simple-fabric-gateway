@@ -1,2 +1,7 @@
 /simple-fabric-gateway
 *.pem
+
+/network/test-network/fabric-data
+
+log.txt
+basic.tar.gz

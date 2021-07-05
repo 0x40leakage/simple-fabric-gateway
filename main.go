@@ -116,7 +116,7 @@ func New(configFilePath string) (*MyClient, error) {
 // !!! func (msp *bccspmsp) setupCRLs(conf *m.FabricMSPConfig) error {
 
 func UpdateCRLOfChannelConfig(at actionType, certPath, channelName string) error {
-	cfgBlk, err := gcli.RC.QueryConfigBlockFromOrderer("mychannel", resmgmt.WithOrdererEndpoint("orderer0.example.com"))
+	cfgBlk, err := gcli.RC.QueryConfigBlockFromOrderer("mychannel", resmgmt.WithOrdererEndpoint("orderer.example.com"))
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func genCRLInternal(at actionType, certPath string) ([]byte, error) {
 	// log.Printf("%#v\n", crl)
 	blk := &pem.Block{Bytes: crl, Type: "X509 CRL"}
 	crlBytes := pem.EncodeToMemory(blk)
-	// if err := ioutil.WriteFile("../fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/msp/crls/crl.pem", crlBytes, 0644); err != nil {
+	// if err := ioutil.WriteFile("../simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/msp/crls/crl.pem", crlBytes, 0644); err != nil {
 	// 	return nil, err
 	// }
 
@@ -287,12 +287,12 @@ func genCRLsample() {
 
 // 撤销 Org1.Admin 证书
 func GenCRL() (string, error) {
-	admin1Org1CertPath := "/home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts/Admin@org1.example.com-cert.pem"
+	admin1Org1CertPath := "/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp/signcerts/Admin@org1.example.com-cert.pem"
 	org1AdminCert, err := getX509Cert(admin1Org1CertPath)
 	if err != nil {
 		return "", err
 	}
-	org1CACertPath := "/home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/ca/ca.org1.example.com-cert.pem"
+	org1CACertPath := "/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/ca/ca.org1.example.com-cert.pem"
 	// org1 ca's SKI: 7b523d6dcc5a0768dd8b18e463273470032036c4e1dcd7450e4ad26d0bcd89fa
 	// [123 82 61 109 204 90 7 104 221 139 24 228 99 39 52 112 3 32 54 196 225 220 215 69 14 74 210 109 11 205 137 250]
 
@@ -325,7 +325,7 @@ func GenCRL() (string, error) {
 }
 
 func genSigner(cert *x509.Certificate) (crypto.Signer, error) {
-	org1CAksPath := "/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/org1CAKeystore"
+	org1CAksPath := "/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/ca"
 	csp, err := sw.NewDefaultSecurityLevel(org1CAksPath)
 	if err != nil {
 		return nil, err

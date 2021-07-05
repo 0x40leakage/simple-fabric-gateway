@@ -41,11 +41,11 @@ WcBGtev/8VsUijyjsM072C6Ut5TwNyrrthb952+eKlmxLNgT0o5hVYxjXhtwLQsL
 )
 
 const (
-	org1CACertPath = "/home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/ca/ca.org1.example.com-cert.pem"
+	org1CACertPath = "/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/ca/hh55ca.org1.example.com-cert.pem"
 	// org1 ca's SKI: 7b523d6dcc5a0768dd8b18e463273470032036c4e1dcd7450e4ad26d0bcd89fa
 	// [123 82 61 109 204 90 7 104 221 139 24 228 99 39 52 112 3 32 54 196 225 220 215 69 14 74 210 109 11 205 137 250]
 
-	userCertTemplate = "/home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/users/%[1]s@org1.example.com/msp/signcerts/%[1]s@org1.example.com-cert.pem"
+	userCertTemplate = "/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/users/%[1]s@org1.example.com/msp/signcerts/%[1]s@org1.example.com-cert.pem"
 )
 
 const (

@@ -65,7 +65,7 @@ client:
 
   # Root of the MSP directories with keys and certs.
   cryptoconfig:
-    path: /home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config
+    path: /home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations
 
   # Some SDKs support pluggable KV stores, the properties under "credentialStore"
   # are implementation specific
@@ -97,9 +97,9 @@ client:
     # [Optional]. Client key and cert for TLS handshake with peers and orderers
     client:
       key:
-        path: /home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/tls/client.key
+        path: /home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/tls/client.key
       cert:
-        path: /home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/users/Admin@org1.example.com/tls/client.crt
+        path: /home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/tls/client.crt
 
 #
 # [Optional]. But most apps would have this section so that channel objects can be constructed
@@ -224,7 +224,7 @@ channels:
     # be "names" of orgs defined under "organizations/peers"
     # deprecated: not recommended, to override any orderer configuration items, entity matchers should be used.
 #    orderers:
-#      - orderer0.example.com
+#      - orderer.example.com
 
     #[Required if _default peers not defined; Optional if _default peers defined].
     # list of peers from participating orgs
@@ -293,14 +293,14 @@ organizations:
 # SDK is implementation specific. Consult each SDK's documentation for its handling of orderers.
 #
 orderers:
-  orderer0.example.com:
+  orderer.example.com:
     # [Optional] Default: Infer from hostname
-    url: orderer0.example.com:11050
+    url: orderer.example.com:7050
 
     # these are standard properties defined by the gRPC library
     # they will be passed in as-is to gRPC client constructor
     grpcOptions:
-      ssl-target-name-override: orderer0.example.com
+      ssl-target-name-override: orderer.example.com
       # These parameters should be set in coordination with the keepalive policy on the server,
       # as incompatible settings can result in closing of connection.
       # When duration of the 'keep-alive-time' is set to 0 or less the keep alive client parameters are disabled
@@ -313,7 +313,7 @@ orderers:
 
     tlsCACerts:
       # Certificate location absolute path
-      path: /home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/ordererOrganizations/example.com/tlsca/tlsca.example.com-cert.pem
+      path: /home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/ordererOrganizations/example.com/tlsca/tlsca.example.com-cert.pem
 
 #
 # List of peers to send various requests to, including endorsement, query
@@ -339,7 +339,7 @@ peers:
 
     tlsCACerts:
       # Certificate location absolute path
-      path: /home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/tlsca/tlsca.org1.example.com-cert.pem
+      path: /home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/tlsca/tlshh55ca.org1.example.com-cert.pem
 
 #
 # Fabric-CA is a special kind of Certificate Authority provided by Hyperledger Fabric which allows
@@ -406,7 +406,7 @@ entitymatchers:
       mappedhost: peer0.org1.example.com
 
   orderer:
-    - pattern: (\w*)orderer0.example.com(\w*)
-      urlsubstitutionexp: localhost:11050
-      ssltargetoverrideurlsubstitutionexp: orderer0.example.com
-      mappedhost: orderer0.example.com
+    - pattern: (\w*)orderer.example.com(\w*)
+      urlsubstitutionexp: localhost:7050
+      ssltargetoverrideurlsubstitutionexp: orderer.example.com
+      mappedhost: orderer.example.com
