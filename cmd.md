@@ -10,9 +10,49 @@ export CORE_PEER_ADDRESS=localhost:7051
 peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile ${PWD}/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n basic --peerAddresses localhost:7051 --tlsRootCertFiles ${PWD}/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt -c '{"function":"InitLedger","Args":[]}'
 
 peer chaincode query -C mychannel -n basic -c '{"Args":["GetAllAssets"]}'
+
+
+export FABRIC_CFG_PATH=/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/configtx
+export CORE_PEER_TLS_ENABLED=true
+export CORE_PEER_LOCALMSPID="Org1MSP"
+export CORE_PEER_TLS_ROOTCERT_FILE=/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt
+export CORE_PEER_MSPCONFIGPATH=/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/users/Admin@org1.example.com/msp
+export CORE_PEER_ADDRESS=localhost:7051
+
+peer chaincode invoke -o localhost:7050 --ordererTLSHostnameOverride orderer.example.com --tls --cafile /home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/ordererOrganizations/example.com/orderers/orderer.example.com/msp/tlscacerts/tlsca.example.com-cert.pem -C mychannel -n basic --peerAddresses localhost:7051 --tlsRootCertFiles /home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/network/test-network/organizations/peerOrganizations/org1.example.com/peers/peer0.org1.example.com/tls/ca.crt -c '{"function":"InitLedger","Args":[]}'
 ```
 
-# Admin
+## peer endorse
+
+```go
+func (e *Endorser) ProcessProposal(ctx context.Context, signedProp *pb.SignedProposal) (*pb.ProposalResponse, error) {
+```
+
+## orderer deliver
+
+```go
+func (s *server) Deliver(srv ab.AtomicBroadcast_DeliverServer) error {
+```
+
+## peer deliver
+
+```go
+func (s *DeliverServer) Deliver(srv peer.Deliver_DeliverServer) (err error) {
+
+
+// DeliverBlocks used to pull out blocks from the ordering service to
+// distributed them across peers
+func (d *Deliverer) DeliverBlocks() {
+```
+
+## inject 
+
+```go
+func (msp *bccspmsp) validateCertAgainstChain(cert *x509.Certificate, validationChain []*x509.Certificate) error {
+```
+
+
+<!-- # Admin
 
 export FABRIC_CFG_PATH=/home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/sampleconfig
 export CORE_PEER_ADDRESS=peer0.org1.example.com:7051
@@ -50,4 +90,4 @@ ChainID 为空；
 
 - [ ] 创建通道，生成用户证书，注销用户证书
 
-qscc/GetChainInfo
+qscc/GetChainInfo -->
