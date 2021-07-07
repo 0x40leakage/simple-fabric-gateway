@@ -325,7 +325,7 @@ func GenCRL() (string, error) {
 }
 
 func genSigner(cert *x509.Certificate) (crypto.Signer, error) {
-	org1CAksPath := "/home/ubuntu/go/src/github.com/hyperledger/simple-fabric-gateway/org1CAKeystore"
+	org1CAksPath := "/home/ubuntu/go/src/github.com/hyperledger/fabric/_debug/first-network-simple/crypto-config/peerOrganizations/org1.example.com/ca"
 	csp, err := sw.NewDefaultSecurityLevel(org1CAksPath)
 	if err != nil {
 		return nil, err
