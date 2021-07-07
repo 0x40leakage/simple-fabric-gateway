@@ -2,6 +2,10 @@
 *.pem
 
 /network/test-network/fabric-data
+/network/test-network/organization/ordererOrganizations
+/network/test-network/organization/peerOrganizations
+/network/test-network/system-genesis-block
+
 
 log.txt
 basic.tar.gz
