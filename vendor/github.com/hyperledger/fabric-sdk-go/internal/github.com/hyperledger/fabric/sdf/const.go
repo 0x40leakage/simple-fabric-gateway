@@ -1,0 +1,116 @@
+package sdf
+
+const MAX_SESSIONS = 2048
+const SDR_OK = 0x00000000
+
+// 对称算法机制
+const (
+	SGD_SM1_ECB   = 0x00000101 // SM1算法ECB加密模式
+	SGD_SM1_CBC   = 0x00000102 // SM1算法CBC加密模式
+	SGD_SM1_CFB   = 0x00000104 // SM1算法CFB加密模式
+	SGD_SM1_OFB   = 0x00000108 // SM1算法OFB加密模式
+	SGD_SM1_MAC   = 0x00000110 // SM1算法MAC算法
+	SGD_SSF33_ECB = 0x00000201 // SSF33算法ECB加密模式
+	SGD_SSF33_CBC = 0x00000202 // SSF33算法CBC加密模式
+	SGD_SSF33_CFB = 0x00000204 // SSF33算法CFB加密模式
+	SGD_SSF33_OFB = 0x00000208 // SSF33算法OFB加密模式
+	SGD_SSF33_MAC = 0x00000210 // SSF33算法MAC算法
+	SGD_SM4_ECB   = 0x00000401 // SM4算法ECB加密模式
+	SGD_SM4_CBC   = 0x00000402 // SM4算法CBC加密模式
+	SGD_SM4_CFB   = 0x00000404 // SM4算法CFB加密模式
+	SGD_SM4_OFB   = 0x00000408 // SM4算法OFB加密模式
+	SGD_SM4_MAC   = 0x00000410 // SM4算法MAC算法
+)
+
+const (
+	SGD_AES_ECB  = 0x90000401 // AES算法ECB加密模式
+	SGD_AES_CBC  = 0x90000402 // AES算法CBC加密模式
+	SGD_AES_CMAC = 0x90000412 // AES算法CMAC算法
+	SGD_AES_GCM  = 0x90000420 // AES算法GCM算法
+	SGD_DES_ECB  = 0x90000101 // DES算法ECB加密模式
+	SGD_DES_CBC  = 0x90000102 // DES算法CBC加密模式
+	SGD_DES_CMAC = 0x90000122 // DES算法CMAC算法
+
+	SGD_ZUC_EEA3   = 0x00000801 // ZUC祖冲之加解密算法128-EEA3
+	SGD_ZUC_EIA3   = 0x00000802 // ZUC祖冲之MAC算法128-EIA3
+	SGD_RC4_STREAM = 0x00000804 //RC4算法
+)
+
+// 非对称算法机制
+const (
+	SGD_RSA = 0x00010000 // RSA算法
+)
+
+/*外加机制*/
+const (
+	SGD_RSA_SIGN_EX = 0x00010001 //导入或导出RSA签名或验证密钥时使用
+	SGD_RSA_ENC_EX  = 0x00010002 //导入或导出RSA加密或解密密钥时使用
+	SGD_SM2         = 0x00020100 // SM2椭圆曲线密码算法
+	SGD_SM2_1       = 0x00020200 // SM2椭圆曲线签名算法
+	SGD_SM2_2       = 0x00020400 // SM2椭圆曲线密钥交换协议
+	SGD_SM2_3       = 0x00020800 // SM2椭圆曲线加密算法
+)
+
+// 摘要算法
+const (
+	SGD_SM3    = 0x00000001 // SM3杂凑算法 SM3-256
+	SGD_SHA1   = 0x00000002 // SHA_1杂凑算法
+	SGD_SHA256 = 0x00000004 // SHA_256杂凑算法
+	SGD_MD5    = 0x00000008 // MD5杂凑算法
+	SGD_SHA224 = 0x00000010 // SHA_224杂凑算法
+	SGD_SHA384 = 0x00000020 // SHA_384杂凑算法
+	SGD_SHA512 = 0x00000040 // SHA_512杂凑算法
+)
+
+/* ECC曲线类型 */
+//NIST标准
+const NIST_FP_160 = 1
+
+//NIST标准
+const (
+	NIST_FP_192 = 2
+	NIST_FP_224 = 3
+	NIST_FP_256 = 4
+)
+
+//国密局标准
+const (
+	OSCCA_FP_192    = 5
+	OSCCA_FP_256    = 6
+	OSCCA_NEWFP_256 = 7
+)
+
+// ECC曲线内置算法NID
+const NID_NISTP256 = 415 // NIST的 P256
+// Add by lch 20190822
+const NID_BRAINPOOLP192R1 = 923 // BrainpoolP192r1
+// Add end
+const (
+	NID_BRAINPOOLP256R1 = 928 // BrainpoolP256r1
+	NID_FRP256V1        = 936 // FRP256V1
+	NID_SECP384R1       = 715 // SECP384R1
+	PARAID              = OSCCA_NEWFP_256
+)
+
+// ECC密钥协商算法
+const (
+	SGD_ECDH        = 0x00000000 //
+	SGD_ECDH_SHA1   = 0x00000001 //
+	SGD_ECDH_SHA224 = 0x00000002 //
+	SGD_ECDH_SHA256 = 0x00000003 //
+	SGD_ECDH_SHA384 = 0x00000004 //
+	SGD_ECDH_SHA512 = 0x00000005 //
+)
+
+const (
+	RSAref_MAX_BITS  = 4096
+	RSAref_MAX_LEN   = ((RSAref_MAX_BITS + 7) / 8)
+	RSAref_MAX_PBITS = ((RSAref_MAX_BITS + 1) / 2)
+	RSAref_MAX_PLEN  = ((RSAref_MAX_PBITS + 7) / 8)
+)
+
+const (
+	ECCref_MAX_BITS = 512
+	ECCref_MAX_LEN  = ((ECCref_MAX_BITS + 7) / 8)
+	ECC_CIPHER_MAX  = 1912
+)

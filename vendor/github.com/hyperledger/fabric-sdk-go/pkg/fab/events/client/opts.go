@@ -47,6 +47,14 @@ func WithBlockEvents() options.Opt {
 	}
 }
 
+func WithPrivateDataEvents() options.Opt {
+	return func(p options.Params) {
+		if setter, ok := p.(permitPrivateDataEventsSetter); ok {
+			setter.PermitPrivateDataEvents()
+		}
+	}
+}
+
 // WithReconnect indicates whether the client should automatically attempt to reconnect
 // to the server after a connection has been lost
 func WithReconnect(value bool) options.Opt {
@@ -189,4 +197,8 @@ type responseTimeoutSetter interface {
 
 type permitBlockEventsSetter interface {
 	PermitBlockEvents()
+}
+
+type permitPrivateDataEventsSetter interface {
+	PermitPrivateDataEvents()
 }

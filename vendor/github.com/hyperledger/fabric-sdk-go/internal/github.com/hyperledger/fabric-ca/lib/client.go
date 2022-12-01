@@ -12,9 +12,13 @@ package lib
 
 import (
 	"bytes"
+	"context"
+	"crypto"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -23,18 +27,22 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	gmTLS "github.com/Hyperledger-TWGC/ccs-gm/tls"
 	cfsslapi "github.com/cloudflare/cfssl/api"
 	"github.com/cloudflare/cfssl/csr"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib/client/credential"
 	x509cred "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib/client/credential/x509"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib/streamer"
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib/tls"
+	libtls "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib/tls"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/sdkinternal/pkg/api"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/sdkinternal/pkg/util"
 	log "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/sdkpatch/logbridge"
+	util2 "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/util"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
+	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/wrapper"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 )
@@ -48,9 +56,11 @@ type Client struct {
 	// Denotes if the client object is already initialized
 	initialized bool
 	// File and directory paths
-	keyFile, certFile, idemixCredFile, idemixCredsDir, ipkFile, caCertsDir string
+	keyFile, certFile, encKeyFile, encCertFile, idemixCredFile, idemixCredsDir, ipkFile, caCertsDir string
 	// The crypto service provider (BCCSP)
 	csp core.CryptoSuite
+	// The crypto service provider (BCCSP) for TLS
+	tlscsp bccsp.BCCSP
 	// HTTP client associated with this Fabric CA client
 	httpClient *http.Client
 
@@ -74,8 +84,11 @@ type GetCAInfoResponse struct {
 
 // EnrollmentResponse is the response from Client.Enroll and Identity.Reenroll
 type EnrollmentResponse struct {
-	Identity *Identity
-	CAInfo   GetCAInfoResponse
+	Identity      *Identity
+	CAInfo        GetCAInfoResponse
+	EncPrivateKey []byte
+	EncCert       []byte
+	SKI           string
 }
 
 // Init initializes the client
@@ -98,6 +111,7 @@ func (c *Client) Init() error {
 			return errors.Wrap(err, "Failed to create keystore directory")
 		}
 		c.keyFile = path.Join(keyDir, "key.pem")
+		c.encKeyFile = path.Join(keyDir, "enckey.pem")
 
 		// Cert directory and file
 		certDir := path.Join(mspDir, "signcerts")
@@ -106,6 +120,8 @@ func (c *Client) Init() error {
 			return errors.Wrap(err, "Failed to create signcerts directory")
 		}
 		c.certFile = path.Join(certDir, "cert.pem")
+
+		c.encCertFile = path.Join(certDir, "enccert.pem")
 
 		// CA certs directory
 		c.caCertsDir = path.Join(mspDir, "cacerts")
@@ -127,6 +143,10 @@ func (c *Client) Init() error {
 
 		c.csp = cfg.CSP
 
+		util2.ConfigureBCCSP(&c.Config.Opts, mspDir, c.HomeDir)
+
+		c.tlscsp = wrapper.NewBCCSP(cfg.CSP)
+
 		// Create http.Client object and associate it with this client
 		err = c.initHTTPClient(cfg.ServerName)
 		if err != nil {
@@ -141,20 +161,30 @@ func (c *Client) Init() error {
 
 func (c *Client) initHTTPClient(serverName string) error {
 	tr := new(http.Transport)
+
 	if c.Config.TLS.Enabled {
 		log.Info("TLS Enabled")
 
-		tlsConfig, err2 := tls.GetClientTLSConfig(&c.Config.TLS, c.csp)
+		tlsConfig, err2 := libtls.GetClientGmTLSConfig(&c.Config.TLS, c.csp)
 		if err2 != nil {
-			return fmt.Errorf("Failed to get client TLS config: %s", err2)
+			return fmt.Errorf("failed to get client TLS config: %s", err2)
 		}
-		// set the default ciphers
-		tlsConfig.CipherSuites = tls.DefaultCipherSuites
-		//set the host name override
-		tlsConfig.ServerName = serverName
 
-		tr.TLSClientConfig = tlsConfig
+		if c.IsGMConfig() {
+			tlsConfig.GMSupport = &gmTLS.GMSupport{}
+		} else {
+			tlsConfig.CipherSuites = libtls.DefaultCipherSuites
+		}
+
+		tr.DialTLSContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			conn, err := gmTLS.Dial(network, addr, tlsConfig)
+			if err != nil {
+				return nil, err
+			}
+			return conn, nil
+		}
 	}
+
 	c.httpClient = &http.Client{Transport: tr}
 	return nil
 }
@@ -187,7 +217,7 @@ func (c *Client) GetCAInfo(req *api.GetCAInfoRequest) (*GetCAInfoResponse, error
 }
 
 // GenCSR generates a CSR (Certificate Signing Request)
-func (c *Client) GenCSR(req *api.CSRInfo, id string) ([]byte, core.Key, error) {
+func (c *Client) GenCSR(req *api.CSRInfo, id string, tls ...bool) ([]byte, core.Key, error) {
 	log.Debugf("GenCSR %+v", req)
 
 	err := c.Init()
@@ -198,18 +228,36 @@ func (c *Client) GenCSR(req *api.CSRInfo, id string) ([]byte, core.Key, error) {
 	cr := c.newCertificateRequest(req)
 	cr.CN = id
 
+	if cr.KeyRequest.Algo() == "xinan" {
+		// 由于信安加密时会使用时间戳（秒级）作为密钥的标签，因此在多次生成证书时需要加上时间间隔
+		time.Sleep(time.Duration(rand.Intn(3))*time.Second + time.Second)
+	}
+
 	if (cr.KeyRequest == nil) || (cr.KeyRequest.Size() == 0 && cr.KeyRequest.Algo() == "") {
 		cr.KeyRequest = newCfsslKeyRequest(api.NewKeyRequest())
 	}
 
-	key, cspSigner, err := util.BCCSPKeyRequestGenerate(cr, c.csp)
+	var key core.Key
+	var cspSigner crypto.Signer
+	if len(tls) > 0 && tls[0] {
+		if c.IsGMConfig() {
+			kr := api.NewKeyRequest()
+			kr.Algo = "gmsm2"
+			cr.KeyRequest = newCfsslKeyRequest(kr)
+		}
+		key, cspSigner, err = util.BCCSPKeyRequestGenerate(cr, wrapper.NewCryptoSuite(c.tlscsp), append(c.Config.CSR.Names, req.Names...))
+	} else {
+		key, cspSigner, err = util.BCCSPKeyRequestGenerate(cr, c.csp, append(c.Config.CSR.Names, req.Names...))
+	}
 	if err != nil {
 		log.Debugf("failed generating BCCSP key: %s", err)
 		return nil, nil, err
 	}
 
 	var csrPEM []byte
-	if c.IsGMConfig() {
+	if xinanKey, ok := cspSigner.(*util.XinanSigner); ok {
+		csrPEM, err = xinanKey.GetCSR()
+	} else if c.IsGMConfig() {
 		csrPEM, err = generate(cspSigner, cr)
 	} else {
 		csrPEM, err = csr.Generate(cspSigner, cr)
@@ -266,7 +314,11 @@ func (c *Client) net2LocalCAInfo(net *api.CAInfoResponseNet, local *GetCAInfoRes
 
 func (c *Client) handleX509Enroll(req *api.EnrollmentRequest) (*EnrollmentResponse, error) {
 	// Generate the CSR
-	csrPEM, key, err := c.GenCSR(req.CSR, req.Name)
+	var tls bool
+	if req.Profile == "tls" {
+		tls = true
+	}
+	csrPEM, key, err := c.GenCSR(req.CSR, req.Name, tls)
 	if err != nil {
 		return nil, errors.WithMessage(err, "Failure generating CSR")
 	}
@@ -334,8 +386,45 @@ func (c *Client) newEnrollmentResponse(result *api.EnrollmentResponseNet, id str
 	if err != nil {
 		return nil, err
 	}
+
+	creds := []credential.Credential{x509Cred}
+	if result.EncCert != "" {
+		privateKeyBytes, err := util.B64Decode(result.EncPrivateKey)
+		if err != nil {
+			return nil, errors.WithMessage(err, "Invalid response format from server")
+		}
+
+		//不确定，待验证
+		privateKeyPlain, err := c.tlscsp.Decrypt(wrapper.GetBCCSPKey(key), privateKeyBytes, nil)
+		if err != nil {
+			return nil, errors.WithMessage(err, "Decrypt EncPrivateKey from server failed")
+		}
+		priv, err := c.tlscsp.KeyImport(privateKeyPlain, &bccsp.ECDSAPrivateKeyImportOpts{})
+		if err != nil {
+			return nil, errors.WithMessage(err, "Invalid EncPrivateKey from server")
+		}
+		encCertByte, err := util.B64Decode(result.EncCert)
+		if err != nil {
+			return nil, errors.WithMessage(err, "Invalid response format from server")
+		}
+		signer1, err := x509cred.NewSigner(wrapper.GetKey(priv), encCertByte)
+		if err != nil {
+			return nil, err
+		}
+		x509Cred1 := x509cred.NewCredential(key, certByte, c)
+		err = x509Cred1.SetVal(signer1)
+		if err != nil {
+			return nil, err
+		}
+		creds = append(creds, x509Cred1)
+	}
+
 	resp := &EnrollmentResponse{
 		Identity: NewIdentity(c, id, []credential.Credential{x509Cred}),
+	}
+	// 信安加密机不会返回key
+	if key != nil {
+		resp.SKI = hex.EncodeToString(key.SKI())
 	}
 	err = c.net2LocalCAInfo(&result.ServerInfo, &resp.CAInfo)
 	if err != nil {
@@ -625,11 +714,4 @@ func (c *Client) GetFabCAVersion() (string, error) {
 		return "", e
 	}
 	return i.Version, nil
-}
-
-func (c *Client) IsGMConfig() bool {
-	if strings.ToUpper(c.Config.Opts.ProviderName) == "GM" {
-		return true
-	}
-	return false
 }

@@ -12,10 +12,12 @@ package keyutil
 
 import (
 	"crypto/ecdsa"
+	"unsafe"
+
+	//gox509 "crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"unsafe"
 
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/crypto"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"

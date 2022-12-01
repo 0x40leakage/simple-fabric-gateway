@@ -14,8 +14,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
-
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/pkg/comm"
 )
 
 type TLS struct {
@@ -44,8 +42,15 @@ func (t TLS) Config() (*tls.Config, error) {
 		}
 		tlsConfig = &tls.Config{
 			Certificates: []tls.Certificate{cert},
-			CipherSuites: comm.DefaultTLSCipherSuites,
-			ClientCAs:    caCertPool,
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			},
+			ClientCAs: caCertPool,
 		}
 		if t.ClientCertRequired {
 			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert

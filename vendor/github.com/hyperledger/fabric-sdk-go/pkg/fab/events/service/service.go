@@ -207,6 +207,23 @@ func (s *Service) RegisterFilteredBlockEvent() (fab.Registration, <-chan *fab.Fi
 	}
 }
 
+func (s *Service) RegisterBlockAndPrivateDataEvent() (fab.Registration, <-chan *fab.BlockAndPrivateDataEvent, error) {
+	eventch := make(chan *fab.BlockAndPrivateDataEvent, s.eventConsumerBufferSize)
+	regch := make(chan fab.Registration)
+	errch := make(chan error)
+
+	if err := s.Submit(dispatcher.NewRegisterBlockAndPrivateDataEvent(eventch, regch, errch)); err != nil {
+		return nil, nil, errors.WithMessage(err, "error registering for filtered block events")
+	}
+
+	select {
+	case response := <-regch:
+		return response, eventch, nil
+	case err := <-errch:
+		return nil, nil, err
+	}
+}
+
 // RegisterChaincodeEvent registers for chaincode events. If the client is not authorized to receive
 // chaincode events then an error is returned.
 // - ccID is the chaincode ID for which events are to be received

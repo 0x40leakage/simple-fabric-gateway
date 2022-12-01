@@ -6,7 +6,7 @@ import (
 
 	flogging "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/logbridge"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509/gmsm"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509/ccsgm"
 )
 
 // InitX509 load and save x509 plugin with name
@@ -21,8 +21,10 @@ func InitX509(x509PluginType string) error {
 		plugin = x509.NewStandardCert()
 	case "std":
 		plugin = x509.NewStandardCert()
-	case "gmsm":
-		plugin = gmsm.NewX509()
+	case "ccsgm":
+		plugin = ccsgm.NewX509()
+	case "sm":
+		plugin = ccsgm.NewX509()
 	default:
 		return fmt.Errorf("unrecognized x509 plugin type: %s", x509PluginType)
 	}

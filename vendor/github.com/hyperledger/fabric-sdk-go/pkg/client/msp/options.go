@@ -6,10 +6,14 @@ SPDX-License-Identifier: Apache-2.0
 
 package msp
 
+import "github.com/hyperledger/fabric-sdk-go/pkg/msp/api"
+
 // client options collector
 type clientOptions struct {
 	orgName string
 	caID    string
+	gm      bool
+	csr     *api.CSRInfo
 }
 
 // request options collector
@@ -42,6 +46,20 @@ func WithOrg(orgName string) ClientOption {
 func WithCAInstance(caID string) ClientOption {
 	return func(o *clientOptions) error {
 		o.caID = caID
+		return nil
+	}
+}
+
+func WithGMOption(gm bool) ClientOption {
+	return func(o *clientOptions) error {
+		o.gm = gm
+		return nil
+	}
+}
+
+func WithCSRInfo(csr *api.CSRInfo) ClientOption {
+	return func(o *clientOptions) error {
+		o.csr = csr
 		return nil
 	}
 }

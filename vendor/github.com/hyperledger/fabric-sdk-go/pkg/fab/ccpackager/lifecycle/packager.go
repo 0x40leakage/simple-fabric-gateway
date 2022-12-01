@@ -24,6 +24,7 @@ import (
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/core/chaincode/persistence"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/peer/packaging"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/pkg/errors"
 )
 
@@ -57,6 +58,10 @@ type Descriptor struct {
 // ComputePackageID returns the package ID from the given label and install package
 func ComputePackageID(label string, pkgBytes []byte) string {
 	return fmt.Sprintf("%s:%x", label, util.ComputeSHA256(pkgBytes))
+}
+
+func ComputePackageIDWithHashOpts(label string, pkgBytes []byte, hashOpts core.HashOpts) string {
+	return fmt.Sprintf("%s:%x", label, util.ComputeHash(pkgBytes, hashOpts))
 }
 
 // Validate validates the package descriptor

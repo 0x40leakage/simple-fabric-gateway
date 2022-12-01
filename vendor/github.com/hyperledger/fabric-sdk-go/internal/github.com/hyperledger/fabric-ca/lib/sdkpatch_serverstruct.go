@@ -10,8 +10,11 @@ Please review third_party pinning scripts and patches for more details.
 
 package lib
 
+import "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/factory"
+
 // CAConfig ...
 type CAConfig struct {
+	CSP *factory.FactoryOpts `yaml:"bccsp" mapstructure:"bccsp" hide:"true"`
 }
 
 // ServerConfig ...

@@ -8,6 +8,8 @@ package msp
 
 import (
 	"fmt"
+	calib "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/pkcs11"
 	"strings"
 
 	caapi "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/sdkinternal/pkg/api"
@@ -31,6 +33,7 @@ type CAClientImpl struct {
 	userStore       msp.UserStore
 	adapter         *fabricCAAdapter
 	registrar       msp.EnrollCredentials
+	csr             *api.CSRInfo
 }
 
 // CAClientOption describes a functional parameter for NewCAClient
@@ -38,12 +41,28 @@ type CAClientOption func(*caClientOption) error
 
 type caClientOption struct {
 	caID string
+	gm   bool
+	csr  *api.CSRInfo
 }
 
 // WithCAInstance allows for specifying optional CA name (within the CA server instance)
 func WithCAInstance(caID string) CAClientOption {
 	return func(o *caClientOption) error {
 		o.caID = caID
+		return nil
+	}
+}
+
+func WithGMOption(gm bool) CAClientOption {
+	return func(o *caClientOption) error {
+		o.gm = gm
+		return nil
+	}
+}
+
+func WithCSRInfo(csr *api.CSRInfo) CAClientOption {
+	return func(o *caClientOption) error {
+		o.csr = csr
 		return nil
 	}
 }
@@ -82,9 +101,20 @@ func NewCAClient(orgName string, ctx contextApi.Client, opts ...CAClientOption) 
 	if !ok {
 		return nil, errors.Errorf("error initializing CA [%s]", caID)
 	}
-	adapter, err := newFabricCAAdapter(caID, ctx.CryptoSuite(), ctx.IdentityConfig())
+	adapter, err := newFabricCAAdapter(caID, ctx.CryptoSuite(), ctx.IdentityConfig(), options.csr.KeyRequest)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error initializing CA [%s]", caID)
+	}
+	if adapter.caClient.Config.Opts.ProviderName == "PKCS11" {
+		if options.gm {
+			adapter.caClient.Config.Opts.Pkcs11Opts = &pkcs11.PKCS11Opts{
+				Algorithm: "GM",
+			}
+		} else {
+			adapter.caClient.Config.Opts.Pkcs11Opts = &pkcs11.PKCS11Opts{
+				Algorithm: "SW",
+			}
+		}
 	}
 
 	identityManager, ok := ctx.IdentityManager(orgName)
@@ -101,6 +131,7 @@ func NewCAClient(orgName string, ctx contextApi.Client, opts ...CAClientOption) 
 		userStore:       ctx.UserStore(),
 		adapter:         adapter,
 		registrar:       caConfig.Registrar,
+		csr:             options.csr,
 	}
 	return mgr, nil
 }
@@ -150,6 +181,36 @@ func (c *CAClientImpl) Enroll(request *api.EnrollmentRequest) error {
 		return errors.Wrap(err, "enroll failed")
 	}
 	return nil
+}
+
+// EnrollAndStore enroll, store this cert, and return cert info
+func (c *CAClientImpl) EnrollAndStore(request *api.EnrollmentRequest) (*calib.EnrollmentResponse, error) {
+
+	if c.adapter == nil {
+		return nil, fmt.Errorf("no CAs configured for organization: %s", c.orgName)
+	}
+	if request.Name == "" {
+		return nil, errors.New("enrollmentID is required")
+	}
+	if request.Secret == "" {
+		return nil, errors.New("enrollmentSecret is required")
+	}
+	request.CSR = c.csr
+	// TODO add attributes
+	cert, err := c.adapter.EnrollResp(request)
+	if err != nil {
+		return nil, errors.Wrap(err, "enroll failed")
+	}
+	userData := &msp.UserData{
+		MSPID:                 c.orgMSPID,
+		ID:                    request.Name,
+		EnrollmentCertificate: cert.Identity.GetECert().Cert(),
+	}
+	err = c.userStore.Store(userData)
+	if err != nil {
+		return nil,errors.Wrap(err, "enroll failed")
+	}
+	return cert, nil
 }
 
 // CreateIdentity create a new identity with the Fabric CA server. An enrollment secret is returned which can then be used,
@@ -337,6 +398,41 @@ func (c *CAClientImpl) Reenroll(request *api.ReenrollmentRequest) error {
 	return nil
 }
 
+// ReenrollNotStore only enroll don't store this cert, and return cert info
+func (c *CAClientImpl) ReenrollNotStore(request *api.ReenrollmentRequest) (*calib.EnrollmentResponse, error) {
+
+	if c.adapter == nil {
+		return nil, fmt.Errorf("no CAs configured for organization: %s", c.orgName)
+	}
+	if request.Name == "" {
+		logger.Info("invalid re-enroll request, missing enrollmentID")
+		return nil, errors.New("user name missing")
+	}
+
+	user, err := c.identityManager.GetSigningIdentity(request.Name)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to retrieve user: %s", request.Name)
+	}
+
+	cert, err := c.adapter.ReenrollResp(user.PrivateKey(), user.EnrollmentCertificate(), request)
+	if err != nil {
+		return nil, errors.Wrap(err, "reenroll failed")
+	}
+	// 信安需要特殊处理，将enroll结果存到userstore，否则在后续与fabric-ca的请求过程中会重新enroll证书，导致token校验失败
+	if c.adapter.caClient.Config.CSR.KeyRequest.Algo == "xinan" {
+		userData := &msp.UserData{
+			MSPID:                 c.orgMSPID,
+			ID:                    request.Name,
+			EnrollmentCertificate: cert.Identity.GetECert().Cert(),
+		}
+		err = c.userStore.Store(userData)
+		if err != nil {
+			return nil, errors.Wrap(err, "enroll failed")
+		}
+	}
+	return cert, nil
+}
+
 // Register a User with the Fabric CA
 // request: Registration Request
 // Returns Enrolment Secret
@@ -506,6 +602,114 @@ func (c *CAClientImpl) RemoveAffiliation(request *api.AffiliationRequest) (*api.
 	return c.adapter.RemoveAffiliation(registrar.PrivateKey(), registrar.EnrollmentCertificate(), request)
 }
 
+// Freeze freeze an normal cert
+func (c *CAClientImpl) Freeze(request *api.FrozenRequest) (*api.FrozenResponse, error) {
+	if c.adapter == nil {
+		return nil, fmt.Errorf("no CAs configured for organization: %s", c.orgName)
+	}
+
+	if request == nil {
+		return nil, errors.New("must provide remove affiliation request")
+	}
+
+	// 校验：name为空  serial 和 aki 必须有值；serial aki 为空   name必须有值
+	if request.Name == "" && (request.Serial == "" || request.AKI == "") {
+		return nil, errors.New("Name is required Or (Serial, AKI) is required")
+	}
+	// 校验GenCrl和CaName：GenCrl为True则CaName不能为空
+	if request.GenCRL && request.CAName == "" {
+		return nil, errors.New("When GenCRL, CAName is required")
+	}
+
+	registrar, err := c.getRegistrar(c.registrar.EnrollID, c.registrar.EnrollSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.adapter.Freeze(registrar.PrivateKey(), registrar.EnrollmentCertificate(), request)
+}
+
+// UnFreeze Unfreeze an freeze cert
+func (c *CAClientImpl) UnFreeze(request *api.UnfrozenRequest) (*api.UnfrozenResponse, error) {
+	if c.adapter == nil {
+		return nil, fmt.Errorf("no CAs configured for organization: %s", c.orgName)
+	}
+
+	if request == nil {
+		return nil, errors.New("must provide remove affiliation request")
+	}
+
+	// 校验：name为空  serial 和 aki 必须有值；serial aki 为空   name必须有值
+	if request.Name == "" && (request.Serial == "" || request.AKI == "") {
+		return nil, errors.New("Name is required Or (Serial, AKI) is required")
+	}
+	// 校验GenCrl和CaName：GenCrl为True则CaName不能为空
+	if request.GenCRL && request.CAName == "" {
+		return nil, errors.New("When GenCRL, CAName is required")
+	}
+
+	registrar, err := c.getRegistrar(c.registrar.EnrollID, c.registrar.EnrollSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.adapter.UnFreeze(registrar.PrivateKey(), registrar.EnrollmentCertificate(), request)
+}
+
+// Lock lock an normal cert
+func (c *CAClientImpl) Lock(request *api.LockedRequest) (*api.LockedResponse, error) {
+	if c.adapter == nil {
+		return nil, fmt.Errorf("no CAs configured for organization: %s", c.orgName)
+	}
+
+	if request == nil {
+		return nil, errors.New("must provide remove affiliation request")
+	}
+
+	// 校验：name为空  serial 和 aki 必须有值；serial aki 为空   name必须有值
+	if request.Name == "" && (request.Serial == "" || request.AKI == "") {
+		return nil, errors.New("Name is required Or (Serial, AKI) is required")
+	}
+	// 校验GenCrl和CaName：GenCrl为True则CaName不能为空
+	if request.GenCRL && request.CAName == "" {
+		return nil, errors.New("When GenCRL, CAName is required")
+	}
+
+	registrar, err := c.getRegistrar(c.registrar.EnrollID, c.registrar.EnrollSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.adapter.Lock(registrar.PrivateKey(), registrar.EnrollmentCertificate(), request)
+}
+
+// UnLock Unlock an locked cert
+func (c *CAClientImpl) UnLock(request *api.UnlockedRequest) (*api.UnlockedResponse, error) {
+	if c.adapter == nil {
+		return nil, fmt.Errorf("no CAs configured for organization: %s", c.orgName)
+	}
+
+	if request == nil {
+		return nil, errors.New("must provide remove affiliation request")
+	}
+
+	// 校验：name为空  serial 和 aki 必须有值；serial aki 为空   name必须有值
+	if request.Name == "" && (request.Serial == "" || request.AKI == "") {
+		return nil, errors.New("Name is required Or (Serial, AKI) is required")
+	}
+	// 校验GenCrl和CaName：GenCrl为True则CaName不能为空
+	if request.GenCRL && request.CAName == "" {
+		return nil, errors.New("When GenCRL, CAName is required")
+	}
+
+	registrar, err := c.getRegistrar(c.registrar.EnrollID, c.registrar.EnrollSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.adapter.UnLock(registrar.PrivateKey(), registrar.EnrollmentCertificate(), request)
+}
+
 func (c *CAClientImpl) getRegistrar(enrollID string, enrollSecret string) (msp.SigningIdentity, error) {
 
 	if enrollID == "" {
@@ -522,7 +726,7 @@ func (c *CAClientImpl) getRegistrar(enrollID string, enrollSecret string) (msp.S
 		}
 
 		// Attempt to enroll the registrar
-		err = c.Enroll(&api.EnrollmentRequest{Name: enrollID, Secret: enrollSecret})
+		err = c.Enroll(&api.EnrollmentRequest{Name: enrollID, Secret: enrollSecret, CSR: c.csr})
 		if err != nil {
 			return nil, err
 		}

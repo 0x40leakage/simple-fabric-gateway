@@ -14,11 +14,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/x509"
+	gox509 "crypto/x509"
 	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/crypto"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
+	"unsafe"
 )
 
 type pkcs8Info struct {
@@ -62,7 +65,7 @@ func privateKeyToDER(privateKey *ecdsa.PrivateKey) ([]byte, error) {
 		return nil, errors.New("invalid ecdsa private key. It must be different from nil")
 	}
 
-	return x509.MarshalECPrivateKey(privateKey)
+	return x509.MarshalECPrivateKey((*crypto.PrivateKey)(unsafe.Pointer(privateKey)))
 }
 
 func privateKeyToPEM(privateKey interface{}, pwd []byte) ([]byte, error) {
@@ -134,7 +137,7 @@ func privateKeyToEncryptedPEM(privateKey interface{}, pwd []byte) ([]byte, error
 		if k == nil {
 			return nil, errors.New("invalid ecdsa private key. It must be different from nil")
 		}
-		raw, err := x509.MarshalECPrivateKey(k)
+		raw, err := x509.MarshalECPrivateKey((*crypto.PrivateKey)(unsafe.Pointer(k)))
 
 		if err != nil {
 			return nil, err
@@ -145,7 +148,7 @@ func privateKeyToEncryptedPEM(privateKey interface{}, pwd []byte) ([]byte, error
 			"PRIVATE KEY",
 			raw,
 			pwd,
-			x509.PEMCipherAES256)
+			gox509.PEMCipherAES256)
 
 		if err != nil {
 			return nil, err
@@ -166,14 +169,16 @@ func derToPrivateKey(der []byte) (key interface{}, err error) {
 
 	if key, err = x509.ParsePKCS8PrivateKey(der); err == nil {
 		switch key.(type) {
-		case *ecdsa.PrivateKey:
+		case *ecdsa.PrivateKey, *crypto.PrivateKey:
 			return
 		default:
 			return nil, errors.New("found unknown private key type in PKCS#8 wrapping")
 		}
 	}
 
-	if key, err = x509.ParseECPrivateKey(der); err == nil {
+	var k *crypto.PrivateKey
+	if k, err = x509.ParseECPrivateKey(der); err == nil {
+		key = (*ecdsa.PrivateKey)(unsafe.Pointer(k))
 		return
 	}
 
@@ -253,7 +258,7 @@ func aesToEncryptedPEM(raw []byte, pwd []byte) ([]byte, error) {
 		"AES PRIVATE KEY",
 		raw,
 		pwd,
-		x509.PEMCipherAES256)
+		gox509.PEMCipherAES256)
 
 	if err != nil {
 		return nil, err
@@ -309,7 +314,7 @@ func publicKeyToEncryptedPEM(publicKey interface{}, pwd []byte) ([]byte, error) 
 			"PUBLIC KEY",
 			raw,
 			pwd,
-			x509.PEMCipherAES256)
+			gox509.PEMCipherAES256)
 
 		if err != nil {
 			return nil, err

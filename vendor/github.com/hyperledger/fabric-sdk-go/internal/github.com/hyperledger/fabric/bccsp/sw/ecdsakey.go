@@ -13,13 +13,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
-	gox509 "crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"unsafe"
 
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/crypto"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
 )
 
 type ecdsaPrivateKey struct {
@@ -34,7 +35,8 @@ func (k *ecdsaPrivateKey) Bytes() ([]byte, error) {
 		return nil, errors.New("not supported")
 	}
 
-	x509Encoded, err := gox509.MarshalECPrivateKey(k.privKey)
+
+	x509Encoded, err := x509.MarshalECPrivateKey((*crypto.PrivateKey)(unsafe.Pointer(k.privKey)))
 	if err != nil {
 		return nil, err
 	}

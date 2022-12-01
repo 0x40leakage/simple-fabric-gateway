@@ -34,7 +34,8 @@ func NewProviderFactory() *ProviderFactory {
 // CreateCryptoSuiteProvider returns a new default implementation of BCCSP
 func (f *ProviderFactory) CreateCryptoSuiteProvider(config core.CryptoSuiteConfig) (core.CryptoSuite, error) {
 	// todo：适配多种加密算法
-	if config.SecurityProvider() != "sw" && config.SecurityProvider() != "gm" && config.SecurityProvider() != "pkcs11" {
+	if config.SecurityProvider() != "sw" && config.SecurityProvider() != "gm" &&
+		config.SecurityProvider() != "pkcs11" && config.SecurityProvider() != "sdf" {
 		logger.Warnf("default provider factory doesn't support '%s' crypto provider", config.SecurityProvider())
 	}
 	//cryptoSuiteProvider, err := cryptosuiteimpl.GetSuiteByConfig(config)
@@ -44,8 +45,8 @@ func (f *ProviderFactory) CreateCryptoSuiteProvider(config core.CryptoSuiteConfi
 }
 
 // CreateSigningManager returns a new default implementation of signing manager
-func (f *ProviderFactory) CreateSigningManager(cryptoProvider core.CryptoSuite) (core.SigningManager, error) {
-	return signingMgr.New(cryptoProvider)
+func (f *ProviderFactory) CreateSigningManager(cryptoProvider core.CryptoSuite, hashOpts core.HashOpts) (core.SigningManager, error) {
+	return signingMgr.New(cryptoProvider, hashOpts)
 }
 
 // CreateInfraProvider returns a new default implementation of fabric primitives

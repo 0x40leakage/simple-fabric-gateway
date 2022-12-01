@@ -13,6 +13,7 @@ import (
 
 	msp_protos "github.com/hyperledger/fabric-protos-go/msp"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/msp"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
 )
 
 // MockIdentity implements identity
@@ -76,6 +77,10 @@ func (id *MockIdentity) Serialize() ([]byte, error) {
 // Anonymous ...
 func (id *MockIdentity) Anonymous() bool {
 	return false
+}
+
+func (id *MockIdentity) GetSignatureAlgorithm() x509.SignatureAlgorithm {
+	return x509.UnknownSignatureAlgorithm
 }
 
 // MockSigningIdentity ...

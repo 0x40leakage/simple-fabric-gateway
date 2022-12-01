@@ -260,7 +260,7 @@ func initSDK(sdk *FabricSDK, configProvider core.ConfigProvider, opts []Option) 
 	}
 
 	// Initialize Signing Manager
-	signingManager, err := sdk.opts.Core.CreateSigningManager(sdk.cryptoSuite)
+	signingManager, err := sdk.opts.Core.CreateSigningManager(sdk.cryptoSuite, cryptosuite.GetHashOpts(cfg.cryptoSuiteConfig.SecurityAlgorithm()))
 	if err != nil {
 		return errors.WithMessage(err, "failed to create signing manager")
 	}

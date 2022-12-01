@@ -132,6 +132,78 @@ type RevokedCert struct {
 	AKI string
 }
 
+type FrozenRequest struct {
+	Name   string `json:"id,omitempty"  help:"Identity whose certificates should be frozen"`
+	Serial string `json:"serial,omitempty"  help:"Serial number of the certificate to be frozen"`
+	AKI    string `json:"aki,omitempty"  help:"AKI (Authority Key Identifier) of the certificate to be frozen"`
+	CAName string `json:"caname,omitempty" skip:"true"`
+	GenCRL bool   `def:"false" skip:"true" json:"gencrl,omitempty"`
+}
+
+type FrozenResponse struct {
+	FrozenCerts []FrozenCert
+	CRL         []byte
+}
+
+type FrozenCert struct {
+	Serial string
+	AKI    string
+}
+
+type UnfrozenRequest struct {
+	Name   string `json:"id,omitempty"  help:"Identity whose certificates should be unfrozen"`
+	Serial string `json:"serial,omitempty"  help:"Serial number of the certificate to be unfrozen"`
+	AKI    string `json:"aki,omitempty"  help:"AKI (Authority Key Identifier) of the certificate to be unfrozen"`
+	CAName string `json:"caname,omitempty" skip:"true"`
+	GenCRL bool   `def:"false" skip:"true" json:"gencrl,omitempty"`
+}
+
+type UnfrozenResponse struct {
+	UnFrozenCerts []UnfrozenCert
+	CRL           []byte
+}
+
+type UnfrozenCert struct {
+	Serial string
+	AKI    string
+}
+
+type LockedRequest struct {
+	Name   string `json:"id,omitempty"  help:"Identity whose certificates should be locked"`
+	Serial string `json:"serial,omitempty"  help:"Serial number of the certificate to be locked"`
+	AKI    string `json:"aki,omitempty"  help:"AKI (Authority Key Identifier) of the certificate to be locked"`
+	CAName string `json:"caname,omitempty" skip:"true"`
+	GenCRL bool   `def:"false" skip:"true" json:"gencrl,omitempty"`
+}
+
+type LockedResponse struct {
+	LockedCerts []LockedCert
+	CRL         []byte
+}
+
+type LockedCert struct {
+	Serial string
+	AKI    string
+}
+
+type UnlockedRequest struct {
+	Name   string `json:"id,omitempty"  help:"Identity whose certificates should be unfrozen"`
+	Serial string `json:"serial,omitempty"  help:"Serial number of the certificate to be unfrozen"`
+	AKI    string `json:"aki,omitempty"  help:"AKI (Authority Key Identifier) of the certificate to be unfrozen"`
+	CAName string `json:"caname,omitempty" skip:"true"`
+	GenCRL bool   `def:"false" skip:"true" json:"gencrl,omitempty"`
+}
+
+type UnlockedResponse struct {
+	UnlockedCerts []UnlockedCert
+	CRL           []byte
+}
+
+type UnlockedCert struct {
+	Serial string
+	AKI    string
+}
+
 // GetCAInfoRequest is request to get generic CA information
 type GetCAInfoRequest struct {
 	CAName string `json:"caname,omitempty" skip:"true"`

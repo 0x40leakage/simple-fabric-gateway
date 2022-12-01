@@ -16,7 +16,9 @@ import (
 	"crypto/sha512"
 	"reflect"
 
+	"github.com/Hyperledger-TWGC/ccs-gm/sm3"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/gm/ccsgm"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/sha3"
 )
@@ -53,21 +55,35 @@ func NewWithParams(securityLevel int, hashFamily string, keyStore bccsp.KeyStore
 		return nil, err
 	}
 
+	sm2ImplProvider := ccsgm.NewSm2
+	sm3ImplProvider := ccsgm.NewSm3
+
 	// Notice that errors are ignored here because some test will fail if one
 	// of the following call fails.
 
 	// Set the Encryptors
 	swbccsp.AddWrapper(reflect.TypeOf(&aesPrivateKey{}), &aescbcpkcs7Encryptor{})
+	swbccsp.AddWrapper(reflect.TypeOf(&ecdsaPublicKey{}), &ecdsaEncryptor{})
+
+	swbccsp.AddWrapper(reflect.TypeOf(&sm4PrivateKey{}), &sm4Encryptor{})
 
 	// Set the Decryptors
 	swbccsp.AddWrapper(reflect.TypeOf(&aesPrivateKey{}), &aescbcpkcs7Decryptor{})
+	swbccsp.AddWrapper(reflect.TypeOf(&ecdsaPrivateKey{}), &ecdsaDecryptor{})
+
+	swbccsp.AddWrapper(reflect.TypeOf(&sm4PrivateKey{}), &sm4Decryptor{})
 
 	// Set the Signers
 	swbccsp.AddWrapper(reflect.TypeOf(&ecdsaPrivateKey{}), &ecdsaSigner{})
 
+	swbccsp.AddWrapper(reflect.TypeOf(&sm2PrivateKey{}), &sm2Signer{})
+
 	// Set the Verifiers
 	swbccsp.AddWrapper(reflect.TypeOf(&ecdsaPrivateKey{}), &ecdsaPrivateKeyVerifier{})
 	swbccsp.AddWrapper(reflect.TypeOf(&ecdsaPublicKey{}), &ecdsaPublicKeyKeyVerifier{})
+
+	swbccsp.AddWrapper(reflect.TypeOf(&sm2PrivateKey{}), &sm2PrivateKeyVerifier{})
+	swbccsp.AddWrapper(reflect.TypeOf(&sm2PublicKey{}), &sm2PublicKeyKeyVerifier{})
 
 	// Set the Hashers
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SHAOpts{}), &hasher{hash: conf.hashFunction})
@@ -75,6 +91,8 @@ func NewWithParams(securityLevel int, hashFamily string, keyStore bccsp.KeyStore
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SHA384Opts{}), &hasher{hash: sha512.New384})
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SHA3_256Opts{}), &hasher{hash: sha3.New256})
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SHA3_384Opts{}), &hasher{hash: sha3.New384})
+
+	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SM3HashOpts{}), &hasher{hash: sm3.New})
 
 	// Set the key generators
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.ECDSAKeyGenOpts{}), &ecdsaKeyGenerator{curve: conf.ellipticCurve})
@@ -84,6 +102,9 @@ func NewWithParams(securityLevel int, hashFamily string, keyStore bccsp.KeyStore
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.AES256KeyGenOpts{}), &aesKeyGenerator{length: 32})
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.AES192KeyGenOpts{}), &aesKeyGenerator{length: 24})
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.AES128KeyGenOpts{}), &aesKeyGenerator{length: 16})
+
+	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SM2KeyGenOpts{}), &sm2KeyGenerator{sm2: sm2ImplProvider(), sm3: sm3ImplProvider()})
+	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SM4KeyGenOpts{}), &sm4KeyGenerator{sm3: sm3ImplProvider()})
 
 	// Set the key deriver
 	swbccsp.AddWrapper(reflect.TypeOf(&ecdsaPrivateKey{}), &ecdsaPrivateKeyKeyDeriver{})
@@ -97,6 +118,12 @@ func NewWithParams(securityLevel int, hashFamily string, keyStore bccsp.KeyStore
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.ECDSAPrivateKeyImportOpts{}), &ecdsaPrivateKeyImportOptsKeyImporter{})
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.ECDSAGoPublicKeyImportOpts{}), &ecdsaGoPublicKeyImportOptsKeyImporter{})
 	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.X509PublicKeyImportOpts{}), &x509PublicKeyImportOptsKeyImporter{bccsp: swbccsp})
+
+	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SM4KeyImportOpts{}), &sm4KeyImportOptsKeyImporter{sm3: sm3ImplProvider()})
+	// 通过 opts 的 Algorithm() 方法的返回值和 KeyGen 关联起来
+	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SM2PrivateKeyImportOpts{}), &sm2PrivateKeyImportOptsKeyImporter{sm3: sm3ImplProvider()})
+	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.SM2PublicKeyImportOpts{}), &sm2PublicKeyImportOptsKeyImporter{sm3: sm3ImplProvider()})
+	swbccsp.AddWrapper(reflect.TypeOf(&bccsp.X509SM2PublicKeyImportOpts{}), &x509SM2PublicKeyImportOptsKeyImporter{sm3: sm3ImplProvider()})
 
 	return swbccsp, nil
 }

@@ -97,3 +97,13 @@ func GetX509PublicKeyImportOpts(ephemeral bool) core.KeyImportOpts {
 func GetECDSAPrivateKeyImportOpts(ephemeral bool) core.KeyImportOpts {
 	return &bccsp.ECDSAPrivateKeyImportOpts{Temporary: ephemeral}
 }
+
+//GetECDSAPrivateKeyImportOpts options for ECDSA secret key importation in DER format
+// or PKCS#8 format.
+func GetSM2PublicKeyImportOpts(ephemeral bool) core.KeyImportOpts {
+	return &bccsp.SM2PublicKeyImportOpts{Temporary: ephemeral}
+}
+
+func GetSM2PrivateKeyImportOpts(ephemeral bool) core.KeyImportOpts {
+	return &bccsp.SM2PrivateKeyImportOpts{Temporary: ephemeral}
+}

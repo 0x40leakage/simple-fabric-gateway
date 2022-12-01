@@ -17,42 +17,63 @@ package gm
 
 import (
 	"crypto/rand"
+	"fmt"
 	"hash"
 	"reflect"
 
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/gm"
-	flogging "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/logbridge"
+	gminterface "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/gm"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
 	"github.com/pkg/errors"
 )
 
-var (
-	logger = flogging.MustGetLogger("bccsp_gm")
-)
+const SM4_KeyLen = 16
 
 type impl struct {
 	ks            bccsp.KeyStore
-	keyImporters  map[reflect.Type]KeyImporter
+	implType      string
 	keyGenerators map[reflect.Type]KeyGenerator
+	keyImporters  map[reflect.Type]KeyImporter
+	sm2           gminterface.Sm2
+	sm3           gminterface.Sm3
+	sm4           gminterface.Sm4
 }
 
-func New(keyStore bccsp.KeyStore) (bccsp.BCCSP, error) {
+func New(keyStore bccsp.KeyStore, library ...string) (bccsp.BCCSP, error) {
+	if len(library) == 0 {
+		library = append(library, "")
+	}
 	if keyStore == nil {
 		return nil, errors.Errorf("Invalid bccsp.KeyStore instance. It must be different from nil.")
 	}
+	impl := &impl{ks: keyStore, implType: library[0]}
+	impl.sm2 = gm.NewSm2()
+	impl.sm3 = gm.NewSm3()
+	impl.sm4 = gm.NewSm4()
 
-	impl := &impl{ks: keyStore}
 	keyImporters := make(map[reflect.Type]KeyImporter)
-	keyImporters[reflect.TypeOf(&bccsp.ECDSAPrivateKeyImportOpts{})] = &sm2PrivateKeyImporter{}
-	keyImporters[reflect.TypeOf(&bccsp.ECDSAGoPublicKeyImportOpts{})] = &sm2PublicKeyImporter{}
-	keyImporters[reflect.TypeOf(&bccsp.SM2PublicKeyImportOpts{})] = &sm2PublicKeyImporter{}
-	keyImporters[reflect.TypeOf(&bccsp.X509PublicKeyImportOpts{})] = &x509PublicKeyImporter{}
-	keyImporters[reflect.TypeOf(&bccsp.SM4KeyImportOpts{})] = &sm4KeyImporter{}
-
 	keyGenerators := make(map[reflect.Type]KeyGenerator)
-	keyGenerators[reflect.TypeOf(&bccsp.SM4KeyGenOpts{})] = &sm4KeyGenerator{}
-	keyGenerators[reflect.TypeOf(&bccsp.SM2KeyGenOpts{})] = &sm2KeyGenerator{}
-	keyGenerators[reflect.TypeOf(&bccsp.ECDSAP256KeyGenOpts{})] = &sm2KeyGenerator{}
+
+	keyImporters[reflect.TypeOf(&bccsp.ECDSAPrivateKeyImportOpts{})] = &sm2PrivateKeyImporter{impl.sm3}
+	keyImporters[reflect.TypeOf(&bccsp.ECDSAGoPublicKeyImportOpts{})] = &sm2PublicKeyImporter{impl.sm3}
+	keyImporters[reflect.TypeOf(&bccsp.SM2PublicKeyImportOpts{})] = &sm2PublicKeyImporter{impl.sm3}
+	keyImporters[reflect.TypeOf(&bccsp.SM4KeyImportOpts{})] = &sm4KeyImporter{impl.sm3}
+
+	if library[0] == "xin_an" {
+		keyImporters[reflect.TypeOf(&bccsp.X509PublicKeyImportOpts{})] = &xinAnServerPublicKeyImporter{}
+		keyGenerators[reflect.TypeOf(&bccsp.SM4KeyGenOpts{})] = &xinanSm4KeyGenerator{impl.sm3, impl.sm4}
+	} else {
+		// ccsgm
+		keyImporters[reflect.TypeOf(&bccsp.X509PublicKeyImportOpts{})] = &x509PublicKeyImporter{impl.sm3}
+		keyGenerators[reflect.TypeOf(&bccsp.SM4KeyGenOpts{})] = &sm4KeyGenerator{impl.sm3}
+	}
+
+	// todo 待加密机二开支持sm2产生公私钥，需要根据library区别对待
+	keyGenerators[reflect.TypeOf(&bccsp.SM2KeyGenOpts{})] = &sm2KeyGenerator{impl.sm2, impl.sm3}
+	keyGenerators[reflect.TypeOf(&bccsp.XinAnSM2KeyGenOpts{})] = &xinan_sm2KeyGenerator{impl.sm2}
+	keyGenerators[reflect.TypeOf(&bccsp.XinAnSM2KeyGenOpts1{})] = &xinan_sm2KeyGenerator1{impl.sm2}
+	keyGenerators[reflect.TypeOf(&bccsp.ECDSAP256KeyGenOpts{})] = &sm2KeyGenerator{impl.sm2, impl.sm3}
 
 	impl.keyGenerators = keyGenerators
 	impl.keyImporters = keyImporters
@@ -129,36 +150,36 @@ func (gmcsp *impl) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (k bccsp
 
 // GetKey returns the key this CSP associates to
 // the Subject Key Identifier ski.
-func (gmcsp *impl) GetKey(ski []byte) (k bccsp.Key, err error) {
-	k, err = gmcsp.ks.GetKey(ski)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed getting key for SKI [%v]", ski)
-	}
+func (gmcsp *impl) GetKey(ski []byte) (bccsp.Key, error) {
+	if gmcsp.implType == "xin_an" {
 
-	return
+		cert, err := x509.ParseCertificate(ski)
+		if err != nil {
+			return nil, errors.Wrapf(err, "GetKey error")
+		}
+		xinAnPubKey := xinAnPubKey{}
+		xinAnPubKey.cert = cert
+		priv := &xinAnPrivateKey{xinAnPubKey, cert.Subject.String(), nil}
+		// 签名确认私钥是否存在
+		if _, err = gmcsp.Sign(priv, []byte("test"), nil); err != nil {
+			return nil, errors.New("Key not exists on xinan server")
+		}
+		return priv, nil
+	} else if gmcsp.implType == "ccsgm" {
+		return gmcsp.ks.GetKey(ski)
+	}
+	return nil, fmt.Errorf("not support impType for %s", gmcsp.implType)
 }
 
 // Hash hashes messages msg using options opts.
 func (gmcsp *impl) Hash(msg []byte, opts bccsp.HashOpts) ([]byte, error) {
-	hasher := gm.NewSm3().New()
-	if hasher == nil {
-		return nil, errors.New("the hasher gm.NewSm3() return is nil")
-	}
-
-	hasher.Write(msg)
-	digest := hasher.Sum(nil)
-
-	return digest, nil
+	return gmcsp.sm3.Hash(msg)
 }
 
 // GetHash returns and instance of hash.Hash using options opts.
 // If opts is nil then the default hash function is returned.
 func (gmcsp *impl) GetHash(opts bccsp.HashOpts) (h hash.Hash, err error) {
-	hasher := gm.NewSm3().New()
-	if hasher == nil {
-		return nil, errors.New("the hasher that gm.NewSm3() return is nil")
-	}
-	return hasher, nil
+	return nil, nil
 }
 
 // Sign signs digest using key k.
@@ -176,13 +197,21 @@ func (gmcsp *impl) Sign(k bccsp.Key, digest []byte, opts bccsp.SignerOpts) (sign
 		return nil, errors.New("Invalid digest. Cannot be empty.")
 	}
 
-	if sk, ok := k.(*sm2PrivateKey); ok {
+	switch k.(type) {
+	case *sm2PrivateKey:
+		sk := k.(*sm2PrivateKey)
 		if sk.privKey == nil {
 			return nil, errors.New("Invalid sm2PrivateKey Key. It's privKey must not be nil.")
 		}
-		signature, err = gm.NewSm2().Sign(sk.privKey, rand.Reader, digest, opts)
-	} else {
-		return nil, errors.New("Invalid private Key. PrivateKey must be sm2PrivateKey")
+		signature, err = gmcsp.sm2.Sign(sk.privKey, rand.Reader, digest, opts)
+	case *xinAnPrivateKey:
+		sk := k.(*xinAnPrivateKey)
+		if sk.DN == "" {
+			return nil, errors.New("Invalid xinAnPrivateKey Key. It's dn must not be empty.")
+		}
+		signature, err = gmcsp.sm2.Sign(sk.DN, rand.Reader, digest, opts)
+	default:
+		return nil, errors.New("Invalid private Key")
 	}
 	return
 }
@@ -200,13 +229,17 @@ func (gmcsp *impl) Verify(k bccsp.Key, signature, digest []byte, opts bccsp.Sign
 		return false, errors.New("Invalid digest. Cannot be empty.")
 	}
 
-	if pk, ok := k.(*sm2PublicKey); ok {
+	switch k.(type) {
+	case *sm2PublicKey:
+		pk := k.(*sm2PublicKey)
 		if pk.pubKey == nil {
 			return false, errors.New("Invalid sm2PublicKey Key. It's pubKey must not be nil.")
 		}
-		valid = gm.NewSm2().Verify(pk.pubKey, digest, signature)
-	} else {
-		return false, errors.New("Invalid public Key. PublicKey must be sm2PublicKey")
+		valid = gmcsp.sm2.Verify(pk.pubKey, digest, signature)
+	case *xinAnPubKey:
+		valid = gmcsp.sm2.Verify(k.SKI(), digest, signature)
+	default:
+		return false, errors.New("Invalid public Key.")
 	}
 	return
 }
@@ -224,16 +257,15 @@ func (gmcsp *impl) Encrypt(k bccsp.Key, plaintext []byte, opts bccsp.EncrypterOp
 		if kk.pubKey == nil {
 			return nil, errors.New("Invalid sm2PublicKey Key. It's pubKey must not be nil.")
 		}
-		return gm.NewSm2().Encrypt(kk.pubKey, plaintext)
+		return gmcsp.sm2.Encrypt(kk.pubKey, plaintext)
+	case *xinAnPubKey:
+		return gmcsp.sm2.Encrypt(k.SKI(), plaintext)
 	case *sm4PrivateKey:
 		kk := k.(*sm4PrivateKey)
 		if kk.key == nil {
 			return nil, errors.New("Invalid sm4PrivateKey Key. It's key must not be nil.")
 		}
-		dstLen := (len(plaintext) + 15) / 16
-		ciphertext := make([]byte, dstLen*16)
-		gm.NewSm4().Encrypt(kk.key, ciphertext, plaintext)
-		return ciphertext, nil
+		return gmcsp.sm4.Encrypt(kk.key, plaintext)
 	}
 	return nil, errors.New("Invalid Key. It must be sm2PublicKey or sm4PrivateKey")
 }
@@ -252,15 +284,19 @@ func (gmcsp *impl) Decrypt(k bccsp.Key, ciphertext []byte, opts bccsp.DecrypterO
 		if kk.privKey == nil {
 			return nil, errors.New("Invalid sm2PrivateKey Key. It's privKey must not be nil.")
 		}
-		return gm.NewSm2().Decrypt(kk.privKey, ciphertext)
+		return gmcsp.sm2.Decrypt(kk.privKey, ciphertext)
+	case *xinAnPrivateKey:
+		sk := k.(*xinAnPrivateKey)
+		if sk.DN == "" {
+			return nil, errors.New("Invalid xinAnPrivateKey Key. It's dn must not be empty.")
+		}
+		return gmcsp.sm2.Decrypt(sk.DN, ciphertext)
 	case *sm4PrivateKey:
 		kk := k.(*sm4PrivateKey)
 		if kk.key == nil {
 			return nil, errors.New("Invalid sm4PrivateKey Key. It's key must not be nil.")
 		}
-		plaintext := make([]byte, len(ciphertext))
-		gm.NewSm4().Decrypt(kk.key, plaintext, ciphertext)
-		return plaintext, nil
+		return gmcsp.sm4.Decrypt(kk.key, ciphertext)
 	}
 	return nil, errors.New("Invalid Key. It must be sm2PrivateKey or sm4PrivateKey")
 }

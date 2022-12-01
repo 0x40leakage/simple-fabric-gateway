@@ -20,12 +20,14 @@ package credentials
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
+	"google.golang.org/grpc/grpclog"
 	"io/ioutil"
 	"net"
 
+	"github.com/Hyperledger-TWGC/ccs-gm/sm2"
+	"github.com/Hyperledger-TWGC/ccs-gm/tls"
+	"github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"google.golang.org/grpc/credentials/internal"
 )
 
@@ -60,9 +62,14 @@ type tlsCreds struct {
 }
 
 func (c tlsCreds) Info() ProtocolInfo {
+	securityVersion := "1.2"
+	if c.config.GMSupport != nil {
+		securityVersion = "GM/T 0024-2014"
+	}
+
 	return ProtocolInfo{
 		SecurityProtocol: "tls",
-		SecurityVersion:  "1.2",
+		SecurityVersion:  securityVersion,
 		ServerName:       c.config.ServerName,
 	}
 }
@@ -132,6 +139,34 @@ func appendH2ToNextProtos(ps []string) []string {
 func NewTLS(c *tls.Config) TransportCredentials {
 	tc := &tlsCreds{cloneTLSConfig(c)}
 	tc.config.NextProtos = appendH2ToNextProtos(tc.config.NextProtos)
+
+	// TLS support GMT0024
+	if c.GMSupport == nil && len(c.Certificates) > 0 {
+		switch c.Certificates[0].PrivateKey.(type) {
+		case *sm2.PrivateKey:
+			tc.config.GMSupport = &tls.GMSupport{}
+			tc.config.MinVersion = tls.VersionGMSSL
+		}
+	}
+	if c.GMSupport == nil && c.RootCAs != nil {
+		if certs := c.RootCAs.GetCerts(); len(certs) > 0 {
+			switch certs[0].PublicKey.(type) {
+			case *sm2.PublicKey:
+				tc.config.GMSupport = &tls.GMSupport{}
+				tc.config.MinVersion = tls.VersionGMSSL
+			}
+		}
+	}
+	if c.GMSupport == nil && c.ClientCAs != nil {
+		if certs := c.ClientCAs.GetCerts(); len(certs) > 0 {
+			switch certs[0].PublicKey.(type) {
+			case *sm2.PublicKey:
+				tc.config.GMSupport = &tls.GMSupport{}
+				tc.config.MinVersion = tls.VersionGMSSL
+			}
+		}
+	}
+
 	return tc
 }
 
@@ -144,6 +179,12 @@ func NewTLS(c *tls.Config) TransportCredentials {
 // it will override the virtual host name of authority (e.g. :authority header
 // field) in requests.
 func NewClientTLSFromCert(cp *x509.CertPool, serverNameOverride string) TransportCredentials {
+	if len(cp.GetCerts()) == 1 {
+		if _, ok := cp.GetCerts()[0].PublicKey.(*sm2.PublicKey); ok {
+			return NewTLS(&tls.Config{ServerName: serverNameOverride, RootCAs: cp, GMSupport: &tls.GMSupport{}, MinVersion: tls.VersionGMSSL})
+		}
+	}
+	grpclog.Info("CertPool has multi certs, unable to identify sm2 cert, return default tls config")
 	return NewTLS(&tls.Config{ServerName: serverNameOverride, RootCAs: cp})
 }
 
@@ -163,6 +204,13 @@ func NewClientTLSFromFile(certFile, serverNameOverride string) (TransportCredent
 	cp := x509.NewCertPool()
 	if !cp.AppendCertsFromPEM(b) {
 		return nil, fmt.Errorf("credentials: failed to append certificates")
+	}
+	cert, err := x509.ParseCertificate(b)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := cert.PublicKey.(*sm2.PublicKey); ok {
+		return NewTLS(&tls.Config{ServerName: serverNameOverride, RootCAs: cp, GMSupport: &tls.GMSupport{}, MinVersion: tls.VersionGMSSL}), nil
 	}
 	return NewTLS(&tls.Config{ServerName: serverNameOverride, RootCAs: cp}), nil
 }

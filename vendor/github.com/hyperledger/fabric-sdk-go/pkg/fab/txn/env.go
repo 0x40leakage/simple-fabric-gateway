@@ -13,14 +13,12 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/pkg/errors"
-
 	"github.com/hyperledger/fabric-protos-go/common"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/crypto"
 	contextApi "github.com/hyperledger/fabric-sdk-go/pkg/common/providers/context"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
-	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite"
+	"github.com/pkg/errors"
 )
 
 // TransactionHeader contains metadata for a transaction created by the SDK.
@@ -78,15 +76,26 @@ func NewHeader(ctx contextApi.Client, channelID string, opts ...fab.TxnHeaderOpt
 		}
 	}
 
-	ho := cryptosuite.GetSHA256Opts() // TODO: make configurable
+	// ctx.EnrollmentCertificate()
+	ho := ctx.SigningManager().GetHashOpts()
+
 	h, err := ctx.CryptoSuite().GetHash(ho)
 	if err != nil {
 		return nil, errors.WithMessage(err, "hash function creation failed")
 	}
 
-	id, err := computeTxnID(nonce, creator, h)
-	if err != nil {
-		return nil, errors.WithMessage(err, "txn ID computation failed")
+	var id string
+	if h == nil {
+		digest, err := ctx.CryptoSuite().Hash(append(nonce, creator...), ho)
+		if err != nil {
+			return nil, errors.WithMessage(err, "call hash function failed")
+		}
+		id = hex.EncodeToString(digest)
+	} else {
+		id, err = computeTxnID(nonce, creator, h)
+		if err != nil {
+			return nil, errors.WithMessage(err, "txn ID computation failed")
+		}
 	}
 
 	txnID := TransactionHeader{

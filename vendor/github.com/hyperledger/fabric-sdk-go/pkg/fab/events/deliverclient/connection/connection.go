@@ -58,6 +58,13 @@ var (
 		stream, err := client.DeliverFiltered(ctx)
 		return stream, cancel, err
 	}
+
+	// DeliverWithPrivateData creates a DeliverWithPrivateData stream
+	DeliverWithPrivateData = func(client pb.DeliverClient) (deliverStream, func(), error) {
+		ctx, cancel := context.WithCancel(context.Background())
+		stream, err := client.DeliverWithPrivateData(ctx)
+		return stream, cancel, err
+	}
 )
 
 // New returns a new Deliver Server connection

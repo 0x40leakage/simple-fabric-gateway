@@ -46,6 +46,15 @@ func (m *MockEventService) RegisterFilteredBlockEvent() (fab.Registration, <-cha
 	return reg, eventCh, nil
 }
 
+// RegisterBlockAndPrivateDataEvent registers for pvt block events.
+func (m *MockEventService) RegisterBlockAndPrivateDataEvent() (fab.Registration, <-chan *fab.BlockAndPrivateDataEvent, error) {
+	eventCh := make(chan *fab.BlockAndPrivateDataEvent)
+	reg := &dispatcher.BlockAndPrivateDataReg{
+		Eventch: eventCh,
+	}
+	return reg, eventCh, nil
+}
+
 // RegisterChaincodeEvent registers for chaincode events.
 func (m *MockEventService) RegisterChaincodeEvent(ccID, eventFilter string) (fab.Registration, <-chan *fab.CCEvent, error) {
 	eventCh := make(chan *fab.CCEvent)

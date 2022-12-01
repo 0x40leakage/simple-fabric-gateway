@@ -24,6 +24,7 @@ import (
 
 type sm4PrivateKey struct {
 	key []byte
+	ski []byte
 }
 
 func (k *sm4PrivateKey) Bytes() (raw []byte, err error) {
@@ -32,9 +33,11 @@ func (k *sm4PrivateKey) Bytes() (raw []byte, err error) {
 
 func (k *sm4PrivateKey) SKI() (ski []byte) {
 	// Hash it
-	hash := gm.NewSm3().New()
-	hash.Write(k.key)
-	return hash.Sum(nil)
+	ski, err := gm.NewSm3().Hash(k.key)
+	if err != nil {
+		ski = nil
+	}
+	return ski
 }
 
 func (k *sm4PrivateKey) Symmetric() bool {

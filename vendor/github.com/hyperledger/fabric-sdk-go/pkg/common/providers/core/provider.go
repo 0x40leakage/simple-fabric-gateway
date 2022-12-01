@@ -17,7 +17,15 @@ type CryptoSuiteConfig interface {
 	SecurityProviderLibPath() string
 	SecurityProviderPin() string
 	SecurityProviderLabel() string
+	SecurityProviderAlgorithm() string
 	KeyStorePath() string
+
+	// configuration items for GM
+	SecurityImplType() string
+	SecurityLibrary() string
+	SecurityIP() string
+	SecurityPort() string
+	SecurityPassword() string
 }
 
 // Providers represents the SDK configured core providers context.

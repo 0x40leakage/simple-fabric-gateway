@@ -86,6 +86,14 @@ func (ref *EventClientRef) RegisterFilteredBlockEvent() (fab.Registration, <-cha
 	return service.RegisterFilteredBlockEvent()
 }
 
+func (ref *EventClientRef) RegisterBlockAndPrivateDataEvent() (fab.Registration, <-chan *fab.BlockAndPrivateDataEvent, error) {
+	service, err := ref.get()
+	if err != nil {
+		return nil, nil, err
+	}
+	return service.RegisterBlockAndPrivateDataEvent()
+}
+
 // RegisterChaincodeEvent registers for chaincode events.
 func (ref *EventClientRef) RegisterChaincodeEvent(ccID, eventFilter string) (fab.Registration, <-chan *fab.CCEvent, error) {
 	service, err := ref.get()

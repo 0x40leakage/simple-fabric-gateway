@@ -7,27 +7,23 @@ SPDX-License-Identifier: Apache-2.0
 package msp
 
 import (
-	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io/ioutil"
+	"regexp"
 	"strconv"
 	"strings"
 
-	commtls "github.com/hyperledger/fabric-sdk-go/pkg/core/config/comm/tls"
-
-	"github.com/pkg/errors"
-
-	"regexp"
-
-	"io/ioutil"
-
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/msp"
+	commtls "github.com/hyperledger/fabric-sdk-go/pkg/core/config/comm/tls"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/endpoint"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/lookup"
 	logApi "github.com/hyperledger/fabric-sdk-go/pkg/core/logging/api"
 	fabImpl "github.com/hyperledger/fabric-sdk-go/pkg/fab"
 	"github.com/hyperledger/fabric-sdk-go/pkg/util/pathvar"
+	"github.com/pkg/errors"
 )
 
 var defaultCAServerSchema = "https"
@@ -282,7 +278,7 @@ func appendCertsFromPEM(c commtls.CertPool, pemCerts []byte) (ok bool) {
 			continue
 		}
 
-		cert, err := x509.ParseCertificate(block.Bytes)
+		cert, err := ccsX509.ParseCertificate(block.Bytes)
 		if err != nil {
 			continue
 		}

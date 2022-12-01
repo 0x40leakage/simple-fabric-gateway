@@ -81,6 +81,8 @@ func (ed *Dispatcher) handleEvent(e esdispatcher.Event) {
 		ed.HandleBlock(response.Block, delevent.SourceURL)
 	case *pb.DeliverResponse_FilteredBlock:
 		ed.HandleFilteredBlock(response.FilteredBlock, delevent.SourceURL)
+	case *pb.DeliverResponse_BlockAndPrivateData:
+		ed.HandleBlockAndPrivataData(response.BlockAndPrivateData, delevent.SourceURL)
 	default:
 		logger.Errorf("handler not found for deliver response type %T", response)
 	}

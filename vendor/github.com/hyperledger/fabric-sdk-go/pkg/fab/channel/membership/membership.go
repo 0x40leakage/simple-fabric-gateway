@@ -7,11 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package membership
 
 import (
-	"crypto/x509"
 	"encoding/pem"
-
 	"strings"
 
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/golang/protobuf/proto"
 	mb "github.com/hyperledger/fabric-protos-go/msp"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/msp"
@@ -222,7 +221,7 @@ func addCertsToConfig(config fab.EndpointConfig, pemCertsList [][]byte) {
 		return
 	}
 
-	var certs []*x509.Certificate
+	var certs []*ccsX509.Certificate
 	for _, pemCerts := range pemCertsList {
 		for len(pemCerts) > 0 {
 			var block *pem.Block
@@ -234,7 +233,7 @@ func addCertsToConfig(config fab.EndpointConfig, pemCertsList [][]byte) {
 				continue
 			}
 
-			cert, err := x509.ParseCertificate(block.Bytes)
+			cert, err := ccsX509.ParseCertificate(block.Bytes)
 			if err != nil {
 				continue
 			}

@@ -9,10 +9,10 @@ package cryptoutil
 import (
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/tls"
 	"encoding/pem"
 	"io"
 
+	gmTLS "github.com/Hyperledger-TWGC/ccs-gm/tls"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/logging"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
@@ -72,11 +72,11 @@ func GetPublicKeyFromCert(cert []byte, cs core.CryptoSuite) (core.Key, error) {
 }
 
 // X509KeyPair will return cer/key pair used for mutual TLS
-func X509KeyPair(certPEMBlock []byte, pk core.Key, cs core.CryptoSuite) (tls.Certificate, error) {
+func X509KeyPair(certPEMBlock []byte, pk core.Key, cs core.CryptoSuite) (gmTLS.Certificate, error) {
 
-	fail := func(err error) (tls.Certificate, error) { return tls.Certificate{}, err }
+	fail := func(err error) (gmTLS.Certificate, error) { return gmTLS.Certificate{}, err }
 
-	var cert tls.Certificate
+	var cert gmTLS.Certificate
 	for {
 		var certDERBlock *pem.Block
 		certDERBlock, certPEMBlock = pem.Decode(certPEMBlock)
@@ -136,4 +136,9 @@ func (priv *PrivateKey) Sign(rand io.Reader, msg []byte, opts crypto.SignerOpts)
 	}
 
 	return priv.cryptoSuite.Sign(priv.key, msg, opts)
+}
+
+// ParseCertificate 中间方法，提供给wassabi来解析证书使用
+func ParseCertificate(asn1Data []byte) (*x509.Certificate, error) {
+	return x509.ParseCertificate(asn1Data)
 }

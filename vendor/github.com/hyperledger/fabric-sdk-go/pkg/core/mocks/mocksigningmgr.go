@@ -23,3 +23,7 @@ func NewMockSigningManager() core.SigningManager {
 func (mgr *MockSigningManager) Sign(object []byte, key core.Key) ([]byte, error) {
 	return object, nil
 }
+
+func (mgr *MockSigningManager) GetHashOpts() core.HashOpts {
+	return nil
+}

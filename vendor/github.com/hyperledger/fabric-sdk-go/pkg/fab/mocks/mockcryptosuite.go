@@ -53,3 +53,11 @@ func (m *MockCryptoSuite) Sign(k core.Key, digest []byte,
 func (m *MockCryptoSuite) Verify(k core.Key, signature, digest []byte, opts core.SignerOpts) (valid bool, err error) {
 	return true, nil
 }
+
+func (m *MockCryptoSuite) Encrypt(k core.Key, plaintext []byte, opts core.EncrypterOpts) ([]byte, error) {
+	return nil, nil
+}
+
+func (m *MockCryptoSuite) Decrypt(k core.Key, ciphertext []byte, opts core.DecrypterOpts) ([]byte, error) {
+	return nil, nil
+}

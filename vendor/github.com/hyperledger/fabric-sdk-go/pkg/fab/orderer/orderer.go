@@ -8,27 +8,26 @@ package orderer
 
 import (
 	reqContext "context"
-	"crypto/x509"
 	"io"
 	"time"
 
-	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/multi"
-	"github.com/pkg/errors"
-	"github.com/spf13/cast"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/keepalive"
-	grpcstatus "google.golang.org/grpc/status"
-
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-protos-go/common"
 	ab "github.com/hyperledger/fabric-protos-go/orderer"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/common/verifier"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/multi"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/status"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/logging"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
 	"github.com/hyperledger/fabric-sdk-go/pkg/context"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/comm"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/endpoint"
+	"github.com/pkg/errors"
+	"github.com/spf13/cast"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 var logger = logging.NewLogger("fabsdk/fab")
@@ -44,7 +43,7 @@ type Orderer struct {
 	config         fab.EndpointConfig
 	url            string
 	serverName     string
-	tlsCACert      *x509.Certificate
+	tlsCACert      *ccsX509.Certificate
 	grpcDialOption []grpc.DialOption
 	kap            keepalive.ClientParameters
 	dialTimeout    time.Duration
@@ -81,7 +80,7 @@ func New(config fab.EndpointConfig, opts ...Option) (*Orderer, error) {
 		if err != nil {
 			return nil, err
 		}
-		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*ccsX509.Certificate) error {
 			return verifier.VerifyPeerCertificate(rawCerts, verifiedChains)
 		}
 
@@ -110,7 +109,7 @@ func WithURL(url string) Option {
 }
 
 // WithTLSCert is a functional option for the orderer.New constructor that configures the orderer's TLS certificate
-func WithTLSCert(tlsCACert *x509.Certificate) Option {
+func WithTLSCert(tlsCACert *ccsX509.Certificate) Option {
 	return func(o *Orderer) error {
 		o.tlsCACert = tlsCACert
 

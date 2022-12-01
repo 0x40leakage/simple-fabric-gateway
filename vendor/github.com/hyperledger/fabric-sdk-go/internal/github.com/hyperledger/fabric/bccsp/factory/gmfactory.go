@@ -1,18 +1,9 @@
 /*
-Copyright IBM Corp. 2016 All Rights Reserved.
+Copyright IBM Corp. All Rights Reserved.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-		 http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+SPDX-License-Identifier: Apache-2.0
 */
+
 package factory
 
 import (
@@ -38,17 +29,14 @@ func (f *GMFactory) Name() string {
 // Get returns an instance of BCCSP using Opts.
 func (f *GMFactory) Get(config *FactoryOpts) (bccsp.BCCSP, error) {
 	// Validate arguments
-	if config == nil || config.SwOpts == nil {
+	if config == nil || config.GmOpts == nil {
 		return nil, errors.New("invalid config. It must not be nil")
 	}
 	if config.ProviderName == "GM" {
-		swOpts := config.SwOpts
-
+		gmOpts := config.GmOpts
 		var ks bccsp.KeyStore
-		if swOpts.Ephemeral {
-			ks = gm.NewDummyKeyStore()
-		} else if swOpts.FileKeystore != nil {
-			fks, err := gm.NewFileBasedKeyStore(nil, swOpts.FileKeystore.KeyStorePath, false)
+		if gmOpts.FileKeystore != nil {
+			fks, err := gm.NewFileBasedKeyStore(nil, gmOpts.FileKeystore.KeyStorePath, gmOpts.ImplType, false)
 			if err != nil {
 				return nil, fmt.Errorf("failed to initialize software key store: %s", err)
 			}
@@ -57,8 +45,20 @@ func (f *GMFactory) Get(config *FactoryOpts) (bccsp.BCCSP, error) {
 			// Default to DummyKeystore
 			ks = gm.NewDummyKeyStore()
 		}
-		return gm.New(ks)
+		return gm.New(ks, gmOpts.ImplType)
 	}
-
 	return nil, errors.New("Invalid config. It will set to gm")
+}
+
+// SwOpts contains options for the SWFactory
+type GmOpts struct {
+	// Default algorithms when not specified (Deprecated?)
+	ImplType      string             `mapstructure:"impltype" json:"impltype" yaml:"ImplType"`
+	Library       string             `mapstructure:"library" json:"library" yaml:"Library"`
+	IP            string             `mapstructure:"ip" json:"ip" yaml:"IP"`
+	Port          string             `mapstructure:"port" json:"port" yaml:"Port"`
+	Password      string             `mapstructure:"password" json:"password" yaml:"password"`
+	FileKeystore  *FileKeystoreOpts  `mapstructure:"filekeystore,omitempty" json:"filekeystore,omitempty" yaml:"FileKeyStore"`
+	DummyKeystore *DummyKeystoreOpts `mapstructure:"dummykeystore,omitempty" json:"dummykeystore,omitempty"`
+	InmemKeystore *InmemKeystoreOpts `mapstructure:"inmemkeystore,omitempty" json:"inmemkeystore,omitempty"`
 }

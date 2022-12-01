@@ -17,28 +17,23 @@ package gm
 
 import (
 	"bytes"
-	"io"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
-	"errors"
-	"strings"
-
-	"encoding/hex"
-	"fmt"
-	"path/filepath"
-
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/gm"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/utils"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/crypto"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/gm/ccsgm"
 )
 
-// NewFileBasedKeyStore instantiated a file-based key store at a given position.
-// The key store can be encrypted if a non-empty password is specifiec.
-// It can be also be set as read only. In this case, any store operation
-// will be forbidden
-func NewFileBasedKeyStore(pwd []byte, path string, readOnly bool) (bccsp.KeyStore, error) {
-	ks := &fileBasedKeyStore{}
+func NewFileBasedKeyStore(pwd []byte, path, implType string, readOnly bool) (bccsp.KeyStore, error) {
+	ks := &fileBasedKeyStore{implType: implType}
 	return ks, ks.Init(pwd, path, readOnly)
 }
 
@@ -50,7 +45,8 @@ func NewFileBasedKeyStore(pwd []byte, path string, readOnly bool) (bccsp.KeyStor
 // is used to encrypt and decrypt the files storing the keys.
 // A KeyStore can be read only to avoid the overwriting of keys.
 type fileBasedKeyStore struct {
-	path string
+	path     string
+	implType string // ccsgm
 
 	readOnly bool
 	isOpen   bool
@@ -76,47 +72,32 @@ func (ks *fileBasedKeyStore) Init(pwd []byte, path string, readOnly bool) error 
 	// pwd can be nil
 
 	if len(path) == 0 {
-		return errors.New("an invalid KeyStore path provided. Path cannot be an empty string")
+		return errors.New("An invalid KeyStore path provided. Path cannot be an empty string.")
 	}
 
 	ks.m.Lock()
 	defer ks.m.Unlock()
 
 	if ks.isOpen {
-		return errors.New("keystore is already initialized")
+		return errors.New("KeyStore already initilized.")
 	}
 
 	ks.path = path
+	ks.pwd = utils.Clone(pwd)
 
-	clone := make([]byte, len(pwd))
-	copy(ks.pwd, pwd)
-	ks.pwd = clone
+	err := ks.createKeyStoreIfNotExists()
+	if err != nil {
+		return err
+	}
+
+	err = ks.openKeyStore()
+	if err != nil {
+		return err
+	}
+
 	ks.readOnly = readOnly
 
-	exists, err := dirExists(path)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		err = ks.createKeyStore()
-		if err != nil {
-			return err
-		}
-		return ks.openKeyStore()
-	}
-
-	empty, err := dirEmpty(path)
-	if err != nil {
-		return err
-	}
-	if empty {
-		err = ks.createKeyStore()
-		if err != nil {
-			return err
-		}
-	}
-
-	return ks.openKeyStore()
+	return nil
 }
 
 // ReadOnly returns true if this KeyStore is read only, false otherwise.
@@ -129,7 +110,7 @@ func (ks *fileBasedKeyStore) ReadOnly() bool {
 func (ks *fileBasedKeyStore) GetKey(ski []byte) (bccsp.Key, error) {
 	// Validate arguments
 	if len(ski) == 0 {
-		return nil, errors.New("invalid SKI. Cannot be of zero length")
+		return nil, errors.New("Invalid SKI. Cannot be of zero length.")
 	}
 
 	suffix := ks.getSuffix(hex.EncodeToString(ski))
@@ -138,29 +119,50 @@ func (ks *fileBasedKeyStore) GetKey(ski []byte) (bccsp.Key, error) {
 	case "key":
 		// Load the key
 		path := ks.getPathForAlias(hex.EncodeToString(ski), "key")
-		key, err := gm.NewSm4().LoadKeyFromPem(path, nil)
-		if err != nil || key == nil {
-			return nil, fmt.Errorf("failed loading key [%x] [%s]", ski, err)
+		var key []byte
+		var err error
+		switch ks.implType {
+		case "", "ccsgm":
+			key, err = ccsgm.LoadKeyFromPem(path, nil)
+		default:
+			key, err = nil, fmt.Errorf("unsupported implType: [%s]", ks.implType)
 		}
-		return &sm4PrivateKey{key}, nil
+		if err != nil || key == nil {
+			return nil, fmt.Errorf("Failed loading key [%x] [%s]", ski, err)
+		}
+		return &sm4PrivateKey{key, ski}, nil
 	case "sk":
 		// Load the private key
 
 		path := ks.getPathForAlias(hex.EncodeToString(ski), "sk")
-		key, err := gm.NewSm2().LoadPrivateKeyFromPem(path, nil)
-		if err != nil || key == nil {
-			return nil, fmt.Errorf("failed loading secret key [%x] [%s]", ski, err)
+		var key *crypto.PrivateKey
+		var err error
+		switch ks.implType {
+		case "", "ccsgm":
+			key, err = ccsgm.LoadPrivateKeyFromPem(path, nil)
+		default:
+			key, err = nil, fmt.Errorf("unsupported implType: [%s]", ks.implType)
 		}
-		return &sm2PrivateKey{key}, nil
+		if err != nil || key == nil {
+			return nil, fmt.Errorf("Failed loading secret key [%x] [%s]", ski, err)
+		}
+		return &sm2PrivateKey{key, ski}, nil
 
 	case "pk":
 		// Load the public key
 		path := ks.getPathForAlias(hex.EncodeToString(ski), "pk")
-		key, err := gm.NewSm2().LoadPublicKeyFromPem(path, nil)
-		if err != nil || key == nil {
-			return nil, fmt.Errorf("failed loading public key [%x] [%s]", ski, err)
+		var key *crypto.PublicKey
+		var err error
+		switch ks.implType {
+		case "", "ccsgm":
+			key, err = ccsgm.LoadPublicKeyFromPem(path, nil)
+		default:
+			key, err = nil, fmt.Errorf("unsupported implType: [%s]", ks.implType)
 		}
-		return &sm2PublicKey{key}, nil
+		if err != nil || key == nil {
+			return nil, fmt.Errorf("Failed loading public key [%x] [%s]", ski, err)
+		}
+		return &sm2PublicKey{key, ski}, nil
 
 	default:
 		return ks.searchKeystoreForSKI(ski)
@@ -171,47 +173,62 @@ func (ks *fileBasedKeyStore) GetKey(ski []byte) (bccsp.Key, error) {
 // If this KeyStore is read only then the method will fail.
 func (ks *fileBasedKeyStore) StoreKey(k bccsp.Key) (err error) {
 	if ks.readOnly {
-		return errors.New("read only KeyStore")
+		return errors.New("Read only KeyStore.")
 	}
 
 	if k == nil {
-		return errors.New("invalid key. It must be different from nil")
+		return errors.New("Invalid key. It must be different from nil.")
 	}
 	switch k.(type) {
 	case *sm2PrivateKey:
 		kk := k.(*sm2PrivateKey)
 		if kk.privKey == nil {
-			return errors.New("invalid key. It's privkey must be different from nil")
+			return errors.New("Invalid key. It's privkey must be different from nil")
 		}
 		path := ks.getPathForAlias(hex.EncodeToString(k.SKI()), "sk")
-		_, err = gm.NewSm2().SavePrivateKeytoPem(path, kk.privKey, nil)
+		switch ks.implType {
+		case "", "ccsgm":
+			_, err = ccsgm.SavePrivateKeytoPem(path, kk.privKey, nil)
+		default:
+			err = fmt.Errorf("unsupported implType: [%s]", ks.implType)
+		}
 		if err != nil {
-			return fmt.Errorf("failed storing sm2 private key [%s]", err)
+			return fmt.Errorf("Failed storing sm2 private key [%s]", err)
 		}
 
 	case *sm2PublicKey:
 		kk := k.(*sm2PublicKey)
 		if kk.pubKey == nil {
-			return errors.New("invalid key. It's pubKey must be different from nil")
+			return errors.New("Invalid key. It's pubKey must be different from nil")
 		}
 		path := ks.getPathForAlias(hex.EncodeToString(k.SKI()), "pk")
-		_, err = gm.NewSm2().SavePublicKeytoPem(path, kk.pubKey, nil)
-		if err != nil {
-			return fmt.Errorf("failed storing sm2 public key [%s]", err)
+		switch ks.implType {
+		case "", "ccsgm":
+			_, err = ccsgm.SavePublicKeytoPem(path, kk.pubKey, nil)
+		default:
+			err = fmt.Errorf("unsupported implType: [%s]", ks.implType)
 		}
-
+		if err != nil {
+			return fmt.Errorf("Failed storing sm2 public key [%s]", err)
+		}
+	case *xinAnPrivateKey:
 	case *sm4PrivateKey:
 		kk := k.(*sm4PrivateKey)
 		if kk.key == nil {
-			return errors.New("invalid key. It's key must be different from nil")
+			return errors.New("Invalid key. It's key must be different from nil")
 		}
 		path := ks.getPathForAlias(hex.EncodeToString(k.SKI()), "key")
-		_, err = gm.NewSm4().SaveKeyToPem(path, kk.key, nil)
+		switch ks.implType {
+		case "", "ccsgm":
+			_, err = ccsgm.SaveKeyToPem(path, kk.key, nil)
+		default:
+			err = fmt.Errorf("unsupported implType: [%s]", ks.implType)
+		}
 		if err != nil {
-			return fmt.Errorf("failed storing sm4 private key [%s]", err)
+			return fmt.Errorf("Failed storing sm4 private key [%s]", err)
 		}
 	default:
-		return fmt.Errorf("key type not reconigned [%s]", k)
+		return fmt.Errorf("Key type not reconigned [%s]", k)
 	}
 
 	return
@@ -229,19 +246,25 @@ func (ks *fileBasedKeyStore) searchKeystoreForSKI(ski []byte) (k bccsp.Key, err 
 			continue
 		}
 
-		sk, err := gm.NewSm2().LoadPrivateKeyFromPem(filepath.Join(ks.path, f.Name()), nil)
+		var sk *crypto.PrivateKey
+		var err error
+		switch ks.implType {
+		case "", "ccsgm":
+			sk, err = ccsgm.LoadPrivateKeyFromPem(filepath.Join(ks.path, f.Name()), nil)
+		default:
+			sk, err = nil, fmt.Errorf("unsupported implType: [%s]", ks.implType)
+		}
 		if err != nil {
 			continue
 		}
-		k = &sm2PrivateKey{sk}
+		k = &sm2PrivateKey{sk, ski}
 		if !bytes.Equal(k.SKI(), ski) {
 			continue
 		}
 
 		return k, nil
 	}
-
-	return nil, fmt.Errorf("key with SKI %s not found in %s", hex.EncodeToString(ski), ks.path)
+	return nil, fmt.Errorf("Key with SKI %s not found in %s", hex.EncodeToString(ski), ks.path)
 }
 
 func (ks *fileBasedKeyStore) getSuffix(alias string) string {
@@ -263,17 +286,17 @@ func (ks *fileBasedKeyStore) getSuffix(alias string) string {
 	return ""
 }
 
-func (ks *fileBasedKeyStore) createKeyStore() error {
-	// Create keystore directory root if it doesn't exist yet
+func (ks *fileBasedKeyStore) createKeyStoreIfNotExists() error {
+	// Check keystore directory
 	ksPath := ks.path
-	logger.Debugf("Creating KeyStore at [%s]...", ksPath)
+	missing, _ := utils.DirMissingOrEmpty(ksPath)
 
-	err := os.MkdirAll(ksPath, 0755)
-	if err != nil {
-		return err
+	if missing {
+		err := os.MkdirAll(ks.path, 0755)
+		if err != nil {
+			return err
+		}
 	}
-
-	logger.Debugf("KeyStore created at [%s].", ksPath)
 	return nil
 }
 
@@ -288,29 +311,4 @@ func (ks *fileBasedKeyStore) openKeyStore() error {
 
 func (ks *fileBasedKeyStore) getPathForAlias(alias, suffix string) string {
 	return filepath.Join(ks.path, alias+"_"+suffix)
-}
-
-func dirExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
-
-func dirEmpty(path string) (bool, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
-
-	_, err = f.Readdir(1)
-	if err == io.EOF {
-		return true, nil
-	}
-	return false, err
 }

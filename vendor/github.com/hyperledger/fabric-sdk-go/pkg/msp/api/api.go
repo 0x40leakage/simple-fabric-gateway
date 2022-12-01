@@ -8,6 +8,8 @@ package api
 
 import (
 	"errors"
+	"github.com/cloudflare/cfssl/csr"
+	calib "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib"
 
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/sdkinternal/pkg/api"
 )
@@ -20,7 +22,9 @@ var (
 // CAClient provides management of identities in a Fabric network
 type CAClient interface {
 	Enroll(request *EnrollmentRequest) error
+	EnrollAndStore(request *EnrollmentRequest) (*calib.EnrollmentResponse, error)
 	Reenroll(request *ReenrollmentRequest) error
+	ReenrollNotStore(request *ReenrollmentRequest) (*calib.EnrollmentResponse, error)
 	Register(request *RegistrationRequest) (string, error)
 	Revoke(request *RevocationRequest) (*RevocationResponse, error)
 	GetCAInfo() (*GetCAInfoResponse, error)
@@ -35,6 +39,10 @@ type CAClient interface {
 	AddAffiliation(request *AffiliationRequest) (*AffiliationResponse, error)
 	ModifyAffiliation(request *ModifyAffiliationRequest) (*AffiliationResponse, error)
 	RemoveAffiliation(request *AffiliationRequest) (*AffiliationResponse, error)
+	Freeze(request *FrozenRequest) (*FrozenResponse, error)
+	UnFreeze(request *UnfrozenRequest) (*UnfrozenResponse, error)
+	Lock(request *LockedRequest) (*LockedResponse, error)
+	UnLock(request *UnlockedRequest) (*UnlockedResponse, error)
 }
 
 // AttributeRequest is a request for an attribute.
@@ -88,8 +96,10 @@ type EnrollmentRequest struct {
 
 // CSRInfo is Certificate Signing Request (CSR) Information
 type CSRInfo struct {
-	CN    string
-	Hosts []string
+	CN         string
+	Hosts      []string
+	KeyRequest *api.KeyRequest
+	Names      []csr.Name
 }
 
 // ReenrollmentRequest is a request to reenroll an identity.
@@ -150,6 +160,78 @@ type RevokedCert struct {
 	Serial string
 	// AKI of the revoked certificate
 	AKI string
+}
+
+type FrozenRequest struct {
+	Name   string `json:"id,omitempty"  help:"Identity whose certificates should be frozen"`
+	Serial string `json:"serial,omitempty"  help:"Serial number of the certificate to be frozen"`
+	AKI    string `json:"aki,omitempty"  help:"AKI (Authority Key Identifier) of the certificate to be frozen"`
+	CAName string `json:"caname,omitempty" skip:"true"`
+	GenCRL bool   `def:"false" skip:"true" json:"gencrl,omitempty"`
+}
+
+type FrozenResponse struct {
+	FrozenCerts []FrozenCert
+	CRL         []byte
+}
+
+type FrozenCert struct {
+	Serial string
+	AKI    string
+}
+
+type UnfrozenRequest struct {
+	Name   string `json:"id,omitempty"  help:"Identity whose certificates should be unfrozen"`
+	Serial string `json:"serial,omitempty"  help:"Serial number of the certificate to be unfrozen"`
+	AKI    string `json:"aki,omitempty"  help:"AKI (Authority Key Identifier) of the certificate to be unfrozen"`
+	CAName string `json:"caname,omitempty" skip:"true"`
+	GenCRL bool   `def:"false" skip:"true" json:"gencrl,omitempty"`
+}
+
+type UnfrozenResponse struct {
+	UnFrozenCerts []UnfrozenCert
+	CRL           []byte
+}
+
+type UnfrozenCert struct {
+	Serial string
+	AKI    string
+}
+
+type LockedRequest struct {
+	Name   string `json:"id,omitempty"  help:"Identity whose certificates should be locked"`
+	Serial string `json:"serial,omitempty"  help:"Serial number of the certificate to be locked"`
+	AKI    string `json:"aki,omitempty"  help:"AKI (Authority Key Identifier) of the certificate to be locked"`
+	CAName string `json:"caname,omitempty" skip:"true"`
+	GenCRL bool   `def:"false" skip:"true" json:"gencrl,omitempty"`
+}
+
+type LockedResponse struct {
+	LockedCerts []LockedCert
+	CRL         []byte
+}
+
+type LockedCert struct {
+	Serial string
+	AKI    string
+}
+
+type UnlockedRequest struct {
+	Name   string `json:"id,omitempty"  help:"Identity whose certificates should be unfrozen"`
+	Serial string `json:"serial,omitempty"  help:"Serial number of the certificate to be unfrozen"`
+	AKI    string `json:"aki,omitempty"  help:"AKI (Authority Key Identifier) of the certificate to be unfrozen"`
+	CAName string `json:"caname,omitempty" skip:"true"`
+	GenCRL bool   `def:"false" skip:"true" json:"gencrl,omitempty"`
+}
+
+type UnlockedResponse struct {
+	UnlockedCerts []UnlockedCert
+	CRL           []byte
+}
+
+type UnlockedCert struct {
+	Serial string
+	AKI    string
 }
 
 // IdentityRequest represents the request to add/update identity to the fabric-ca-server

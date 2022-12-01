@@ -7,10 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package comm
 
 import (
-	"crypto/tls"
-
-	"crypto/x509"
-
+	"github.com/Hyperledger-TWGC/ccs-gm/sm2"
+	gmTLS "github.com/Hyperledger-TWGC/ccs-gm/tls"
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite"
 	"github.com/pkg/errors"
@@ -18,8 +17,7 @@ import (
 
 // TLSConfig returns the appropriate config for TLS including the root CAs,
 // certs for mutual TLS, and server host override. Works with certs loaded either from a path or embedded pem.
-func TLSConfig(cert *x509.Certificate, serverName string, config fab.EndpointConfig) (*tls.Config, error) {
-
+func TLSConfig(cert *ccsX509.Certificate, serverName string, config fab.EndpointConfig) (*gmTLS.Config, error) {
 	if cert != nil {
 		config.TLSCACertPool().Add(cert)
 	}
@@ -28,7 +26,14 @@ func TLSConfig(cert *x509.Certificate, serverName string, config fab.EndpointCon
 	if err != nil {
 		return nil, err
 	}
-	return &tls.Config{RootCAs: certPool, Certificates: config.TLSClientCerts(), ServerName: serverName}, nil
+
+	if cert != nil {
+		if _, ok := cert.PublicKey.(*sm2.PublicKey); ok {
+			return &gmTLS.Config{RootCAs: certPool, Certificates: config.TLSClientCerts(), ServerName: serverName, GMSupport: &gmTLS.GMSupport{}, MinVersion: gmTLS.VersionGMSSL}, nil
+		}
+	}
+
+	return &gmTLS.Config{RootCAs: certPool, Certificates: config.TLSClientCerts(), ServerName: serverName}, nil
 }
 
 // TLSCertHash is a utility method to calculate the SHA256 hash of the configured certificate (for usage in channel headers)

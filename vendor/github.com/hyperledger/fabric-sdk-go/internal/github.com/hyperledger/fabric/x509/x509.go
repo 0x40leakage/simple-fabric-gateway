@@ -17,7 +17,7 @@ var (
 	ErrNoPlugin = errors.New("no certificate plugin")
 )
 
-var logger = flogging.MustGetLogger("x509-stb")
+var logger = flogging.MustGetLogger("x509")
 
 // 证书插件实例，系统启动时初始化
 var plugin X509
@@ -35,10 +35,18 @@ func AddPlugin(p X509) error {
 func NewCertPool() *CertPool {
 	logger.Debug("NewCertPool")
 	if plugin == nil {
-		logger.Error(ErrNoPlugin.Error())
-		return nil
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.NewCertPool()
+}
+
+// 证书
+func CreateCertificate(rand io.Reader, template, parent *Certificate, pub, priv interface{}) (cert []byte, err error) {
+	logger.Debug("CreateCertificate")
+	if plugin == nil {
+		AddPlugin(NewStandardCert())
+	}
+	return plugin.CreateCertificate(rand, template, parent, pub, priv)
 }
 
 func CreateCertificateRequest(rand io.Reader, template *CertificateRequest, priv interface{}) (csr []byte, err error) {
@@ -52,17 +60,33 @@ func CreateCertificateRequest(rand io.Reader, template *CertificateRequest, priv
 func ParseCertificate(asn1Data []byte) (*Certificate, error) {
 	logger.Debug("ParseCertificate")
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.ParseCertificate(asn1Data)
+}
+
+func ParseCertificates(asn1Data []byte) ([]*Certificate, error) {
+	logger.Debug("ParseCertificates")
+	if plugin == nil {
+		AddPlugin(NewStandardCert())
+	}
+	return plugin.ParseCertificates(asn1Data)
 }
 
 func ParseCRL(crlBytes []byte) (*pkix.CertificateList, error) {
 	logger.Debug("ParseCRL")
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.ParseCRL(crlBytes)
+}
+
+func ParseCertificateRequest(reqBytes []byte) (*CertificateRequest, error) {
+	logger.Debug("ParseCertificateRequest")
+	if plugin == nil {
+		AddPlugin(NewStandardCert())
+	}
+	return plugin.ParseCertificateRequest(reqBytes)
 }
 
 // DER格式转换
@@ -71,7 +95,7 @@ func MarshalECPrivateKey(key *crypto.PrivateKey) ([]byte, error) {
 	logger.Debug("MarshalECPrivateKey")
 
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.MarshalECPrivateKey(key)
 }
@@ -81,7 +105,7 @@ func ParseECPrivateKey(der []byte) (*crypto.PrivateKey, error) {
 	logger.Debug("ParseECPrivateKey")
 
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.ParseECPrivateKey(der)
 }
@@ -91,7 +115,7 @@ func MarshalPKIXPublicKey(pub interface{}) ([]byte, error) {
 	logger.Debug("MarshalPKIXPublicKey")
 
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.MarshalPKIXPublicKey(pub)
 }
@@ -101,7 +125,7 @@ func ParsePKIXPublicKey(derBytes []byte) (pub interface{}, err error) {
 	logger.Debug("ParsePKIXPublicKey")
 
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.ParsePKIXPublicKey(derBytes)
 }
@@ -111,9 +135,46 @@ func ParsePKCS8PrivateKey(der []byte) (key interface{}, err error) {
 	logger.Debug("ParsePKCS8PrivateKey")
 
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.ParsePKCS8PrivateKey(der)
+}
+
+// PEM格式转换
+// 把私钥转换为加密的PEM格式
+func PrivateKeyToEncryptedPEMBytes(privateKey interface{}, pwd []byte) ([]byte, error) {
+
+	if plugin == nil {
+		AddPlugin(NewStandardCert())
+	}
+	return plugin.PrivateKeyToEncryptedPEMBytes(privateKey, pwd)
+}
+
+// 把公钥转换为加密的PEM格式
+func PublicKeyToEncryptedPEMBytes(publicKey interface{}, pwd []byte) ([]byte, error) {
+
+	if plugin == nil {
+		AddPlugin(NewStandardCert())
+	}
+	return plugin.PublicKeyToEncryptedPEMBytes(publicKey, pwd)
+}
+
+// 把PEM数据转换为私钥
+func PEMBytesToPrivateKey(raw []byte, pwd []byte) (interface{}, error) {
+
+	if plugin == nil {
+		AddPlugin(NewStandardCert())
+	}
+	return plugin.PEMBytesToPrivateKey(raw, pwd)
+}
+
+// 把PME数据转换为公钥
+func PEMBytesToPublicKey(raw []byte, pwd []byte) (interface{}, error) {
+
+	if plugin == nil {
+		AddPlugin(NewStandardCert())
+	}
+	return plugin.PEMBytesToPublicKey(raw, pwd)
 }
 
 //  给标准证书库留的接口
@@ -121,7 +182,7 @@ func MarshalPKCS1PrivateKey(key *rsa.PrivateKey) []byte {
 	logger.Debug("MarshalPKCS1PrivateKey")
 
 	if plugin == nil {
-		return nil
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.MarshalPKCS1PrivateKey(key)
 }
@@ -130,7 +191,7 @@ func ParsePKCS1PrivateKey(der []byte) (*rsa.PrivateKey, error) {
 	logger.Debug("ParsePKCS1PrivateKey")
 
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.ParsePKCS1PrivateKey(der)
 }
@@ -140,7 +201,7 @@ func EncryptPEMBlock(rand io.Reader, blockType string, data, password []byte, al
 	logger.Debug("EncryptPEMBlock")
 
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.EncryptPEMBlock(rand, blockType, data, password, alg)
 }
@@ -150,8 +211,7 @@ func IsEncryptedPEMBlock(b *pem.Block) bool {
 	logger.Debug("IsEncryptedPEMBlock")
 
 	if plugin == nil {
-		logger.Error(ErrNoPlugin.Error())
-		return false
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.IsEncryptedPEMBlock(b)
 }
@@ -161,7 +221,16 @@ func DecryptPEMBlock(b *pem.Block, password []byte) ([]byte, error) {
 	logger.Debug("DecryptPEMBlock")
 
 	if plugin == nil {
-		return nil, ErrNoPlugin
+		AddPlugin(NewStandardCert())
 	}
 	return plugin.DecryptPEMBlock(b, password)
+}
+
+func CheckSignature(request *CertificateRequest) error {
+	logger.Debug("CheckSignature")
+
+	if plugin == nil {
+		AddPlugin(NewStandardCert())
+	}
+	return plugin.CheckSignature(request)
 }

@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package gm
 
 import (
+	"strings"
+
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/sw"
@@ -18,6 +20,9 @@ import (
 )
 
 var logger = logging.NewLogger("fabsdk/core")
+
+// Factories' Initialization Error
+var factoriesInitError error
 
 //GetSuiteByConfig returns cryptosuite adaptor for bccsp loaded according to given config
 func GetSuiteByConfig(config core.CryptoSuiteConfig) (core.CryptoSuite, error) {
@@ -38,23 +43,28 @@ func GetSuiteByConfig(config core.CryptoSuiteConfig) (core.CryptoSuite, error) {
 func GetSuiteWithDefaultEphemeral() (core.CryptoSuite, error) {
 	opts := getEphemeralOpts()
 
-	bccsp, err := getBCCSPFromOpts(opts)
+	csp, err := getBCCSPFromOpts(opts)
 	if err != nil {
 		return nil, err
 	}
-	return wrapper.NewCryptoSuite(bccsp), nil
+	return wrapper.NewCryptoSuite(csp), nil
 }
 
-func getBCCSPFromOpts(config *factory.FactoryOpts) (bccsp.BCCSP, error) {
+func getBCCSPFromOpts(config *factory.FactoryOpts) (csp bccsp.BCCSP, err error) {
 	f := &factory.GMFactory{}
 
 	//如果是国密，需要针对参数加载对应plugin
-	err := gm.InitGMPlugin(config.SwOpts.Library)
+	switch strings.ToLower(config.GmOpts.ImplType) {
+	case "", "ccsgm":
+		err = gm.InitGMPlugin(config.GmOpts.ImplType)
+	case "xin_an":
+		err = gm.InitGMPlugin(config.GmOpts.ImplType, config.GmOpts.IP, config.GmOpts.Port, config.GmOpts.Password, config.GmOpts.Library)
+	}
 	if err != nil {
-		return nil, errors.Wrapf(errors.Errorf("unrecognized gm plugin type: %s", config.SwOpts.Library), "Failed initializing BCCSP.")
+		return nil, errors.Wrapf(errors.Errorf("unrecognized gm plugin type: %s", config.GmOpts.ImplType), "Failed initializing BCCSP.")
 	}
 
-	csp, err := f.Get(config)
+	csp, err = f.Get(config)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not initialize BCCSP %s", f.Name())
 	}
@@ -64,21 +74,23 @@ func getBCCSPFromOpts(config *factory.FactoryOpts) (bccsp.BCCSP, error) {
 // GetSuite returns a new instance of the software-based BCCSP
 // set at the passed security level, hash family and KeyStore.
 func GetSuite(securityLevel int, hashFamily string, keyStore bccsp.KeyStore) (core.CryptoSuite, error) {
-	bccsp, err := sw.NewWithParams(securityLevel, hashFamily, keyStore)
+	csp, err := sw.NewWithParams(securityLevel, hashFamily, keyStore)
 	if err != nil {
 		return nil, err
 	}
-	return wrapper.NewCryptoSuite(bccsp), nil
+	return wrapper.NewCryptoSuite(csp), nil
 }
 
 //GetOptsByConfig Returns Factory opts for given SDK config
 func getOptsByConfig(c core.CryptoSuiteConfig) *factory.FactoryOpts {
 	opts := &factory.FactoryOpts{
 		ProviderName: "GM",
-		SwOpts: &factory.SwOpts{
-			HashFamily: c.SecurityAlgorithm(),
-			SecLevel:   c.SecurityLevel(),
-			Library:    c.SecurityProviderLibPath(),
+		GmOpts: &factory.GmOpts{
+			ImplType: c.SecurityImplType(),
+			Library:  c.SecurityLibrary(),
+			IP:       c.SecurityIP(),
+			Port:     c.SecurityPort(),
+			Password: c.SecurityPassword(),
 			FileKeystore: &factory.FileKeystoreOpts{
 				KeyStorePath: c.KeyStorePath(),
 			},
@@ -92,10 +104,8 @@ func getOptsByConfig(c core.CryptoSuiteConfig) *factory.FactoryOpts {
 func getEphemeralOpts() *factory.FactoryOpts {
 	opts := &factory.FactoryOpts{
 		ProviderName: "GM",
-		SwOpts: &factory.SwOpts{
-			HashFamily: "SHA2",
-			SecLevel:   256,
-			Ephemeral:  true,
+		GmOpts: &factory.GmOpts{
+			ImplType: "ccsgm",
 		},
 	}
 	logger.Debug("Initialized ephemeral SW cryptosuite with default opts")

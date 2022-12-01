@@ -14,9 +14,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"encoding/hex"
-
-	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
-
 	"encoding/pem"
 	"fmt"
 	"sync"
@@ -28,6 +25,8 @@ import (
 	flogging "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/logbridge"
 	logging "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/logbridge"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
+	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite"
 	"github.com/pkg/errors"
 )
 
@@ -155,19 +154,36 @@ func (id *identity) Anonymous() bool {
 	return false
 }
 
+// NewSerializedIdentity returns a serialized identity
+// having as content the passed mspID and x509 certificate in PEM format.
+// This method does not check the validity of certificate nor
+// any consistency of the mspID with it.
+func NewSerializedIdentity(mspID string, certPEM []byte) ([]byte, error) {
+	// We serialize identities by prepending the MSPID
+	// and appending the x509 cert in PEM format
+	sId := &msp.SerializedIdentity{Mspid: mspID, IdBytes: certPEM}
+	raw, err := proto.Marshal(sId)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed serializing identity [%s][%X]", mspID, certPEM)
+	}
+	return raw, nil
+}
+
 // Verify checks against a signature and a message
 // to determine whether this identity produced the
 // signature; it returns nil if so or an error otherwise
 func (id *identity) Verify(msg []byte, sig []byte) error {
 	// mspIdentityLogger.Infof("Verifying signature")
 
-	// Compute Hash
-	hashOpt, err := id.getHashOpt(id.msp.cryptoConfig.SignatureHashFamily)
-	if err != nil {
-		return errors.WithMessage(err, "failed getting hash function options")
+	var hashOpts core.HashOpts
+	signatureAlgorithm := id.GetSignatureAlgorithm()
+	if signatureAlgorithm == x509.SM2WithSM3 {
+		hashOpts = cryptosuite.GetSM3Opts()
+	} else {
+		hashOpts = cryptosuite.GetSHA256Opts()
 	}
 
-	digest, err := id.msp.bccsp.Hash(msg, hashOpt)
+	digest, err := id.msp.bccsp.Hash(msg, hashOpts)
 	if err != nil {
 		return errors.WithMessage(err, "failed computing digest")
 	}
@@ -205,14 +221,20 @@ func (id *identity) Serialize() ([]byte, error) {
 	return idBytes, nil
 }
 
+func (id *identity) GetSignatureAlgorithm() x509.SignatureAlgorithm {
+	return id.cert.SignatureAlgorithm
+}
+
 func (id *identity) getHashOpt(hashFamily string) (core.HashOpts, error) {
 	switch hashFamily {
 	case bccsp.SHA2:
 		return bccsp.GetHashOpt(bccsp.SHA256)
 	case bccsp.SHA3:
 		return bccsp.GetHashOpt(bccsp.SHA3_256)
+	case bccsp.SM3:
+		return bccsp.GetHashOpt(bccsp.SM3)
 	}
-	return nil, errors.Errorf("hash familiy not recognized [%s]", hashFamily)
+	return nil, errors.Errorf("hash family not recognized [%s]", hashFamily)
 }
 
 type signingidentity struct {

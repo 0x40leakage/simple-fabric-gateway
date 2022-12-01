@@ -27,6 +27,11 @@ type FilteredBlockEvent struct {
 	SourceURL string
 }
 
+type BlockAndPrivateDataEvent struct {
+	BlockAndPrivateData *pb.BlockAndPrivateData
+	SourceURL           string
+}
+
 // TxStatusEvent contains the data for a transaction status event
 type TxStatusEvent struct {
 	// TxID is the ID of the transaction in which the event was set
@@ -82,6 +87,8 @@ type EventService interface {
 	// - Returns the registration and a channel that is used to receive events. The channel
 	//   is closed when Unregister is called.
 	RegisterFilteredBlockEvent() (Registration, <-chan *FilteredBlockEvent, error)
+
+	RegisterBlockAndPrivateDataEvent() (Registration, <-chan *BlockAndPrivateDataEvent, error)
 
 	// RegisterChaincodeEvent registers for chaincode events.
 	// Note that Unregister must be called when the registration is no longer needed.

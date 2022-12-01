@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package fab
 
 import (
-	"crypto/x509"
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"time"
 
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/retry"
@@ -113,7 +113,8 @@ type ChannelPeer struct {
 // NetworkPeer combines peer info with MSP info
 type NetworkPeer struct {
 	PeerConfig
-	MSPID string
+	MSPID      string
+	Properties map[Property]interface{}
 }
 
 // OrganizationConfig provides the definition of an organization in the network
@@ -129,14 +130,14 @@ type OrganizationConfig struct {
 type OrdererConfig struct {
 	URL         string
 	GRPCOptions map[string]interface{}
-	TLSCACert   *x509.Certificate
+	TLSCACert   *ccsX509.Certificate
 }
 
 // PeerConfig defines a peer configuration
 type PeerConfig struct {
 	URL         string
 	GRPCOptions map[string]interface{}
-	TLSCACert   *x509.Certificate
+	TLSCACert   *ccsX509.Certificate
 }
 
 // CertKeyPair contains the private key and certificate

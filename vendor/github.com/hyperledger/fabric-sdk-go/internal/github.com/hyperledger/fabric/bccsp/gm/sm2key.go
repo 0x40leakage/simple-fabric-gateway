@@ -17,7 +17,6 @@ package gm
 
 import (
 	"crypto/elliptic"
-	"errors"
 	"fmt"
 
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
@@ -28,23 +27,27 @@ import (
 
 type sm2PrivateKey struct {
 	privKey *crypto.PrivateKey
+	ski     []byte
 }
 
 func (k *sm2PrivateKey) Bytes() ([]byte, error) {
-	return nil, errors.New("Not supported.")
+	return x509.MarshalECPrivateKey(k.privKey)
 }
 
 func (k *sm2PrivateKey) SKI() []byte {
-	if k.privKey == nil {
-		return nil
+	if len(k.ski) > 0 {
+		return k.ski
 	}
 
-	raw := elliptic.Marshal(k.privKey.Curve, k.privKey.X, k.privKey.Y)
+	// hash it
+	raw := elliptic.Marshal(k.privKey.Curve, k.privKey.PublicKey.X, k.privKey.PublicKey.Y)
 
-	// Hash it
-	hash := gm.NewSm3().New()
-	hash.Write(raw)
-	return hash.Sum(nil)
+	var err error
+	k.ski, err = gm.NewSm3().Hash(raw)
+	if err != nil {
+		return nil
+	}
+	return k.ski
 }
 
 func (k *sm2PrivateKey) Symmetric() bool {
@@ -56,11 +59,12 @@ func (k *sm2PrivateKey) Private() bool {
 }
 
 func (k *sm2PrivateKey) PublicKey() (bccsp.Key, error) {
-	return &sm2PublicKey{&k.privKey.PublicKey}, nil
+	return &sm2PublicKey{pubKey: &k.privKey.PublicKey, ski: k.ski}, nil
 }
 
 type sm2PublicKey struct {
 	pubKey *crypto.PublicKey
+	ski    []byte
 }
 
 func (k *sm2PublicKey) Bytes() ([]byte, error) {
@@ -72,15 +76,19 @@ func (k *sm2PublicKey) Bytes() ([]byte, error) {
 }
 
 func (k *sm2PublicKey) SKI() []byte {
-	if k.pubKey == nil {
-		return nil
+	if len(k.ski) > 0 {
+		return k.ski
 	}
+
+	// hash it
 	raw := elliptic.Marshal(k.pubKey.Curve, k.pubKey.X, k.pubKey.Y)
 
-	// Hash it
-	hash := gm.NewSm3().New()
-	hash.Write(raw)
-	return hash.Sum(nil)
+	var err error
+	k.ski, err = gm.NewSm3().Hash(raw)
+	if err != nil {
+		return nil
+	}
+	return k.ski
 }
 
 func (k *sm2PublicKey) Symmetric() bool {

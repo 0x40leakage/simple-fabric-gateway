@@ -16,6 +16,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/protoutil"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/pkg/txflags"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/logging"
@@ -46,14 +47,15 @@ type HandlerRegistry map[reflect.Type]Handler
 type Dispatcher struct {
 	lastBlockNum uint64 // Must be first, do not move
 	params
-	updateLastBlockInfoOnly    bool
-	state                      int32
-	eventch                    chan interface{}
-	blockRegistrations         []*BlockReg
-	filteredBlockRegistrations []*FilteredBlockReg
-	handlers                   map[reflect.Type]Handler
-	txRegistrations            map[string]*TxStatusReg
-	ccRegistrations            map[string]*ChaincodeReg
+	updateLastBlockInfoOnly          bool
+	state                            int32
+	eventch                          chan interface{}
+	blockRegistrations               []*BlockReg
+	filteredBlockRegistrations       []*FilteredBlockReg
+	blockAndPrivateDataRegistrations []*BlockAndPrivateDataReg
+	handlers                         map[reflect.Type]Handler
+	txRegistrations                  map[string]*TxStatusReg
+	ccRegistrations                  map[string]*ChaincodeReg
 }
 
 // New creates a new Dispatcher.
@@ -80,6 +82,7 @@ func (ed *Dispatcher) RegisterHandlers() {
 	ed.RegisterHandler(&RegisterTxStatusEvent{}, ed.handleRegisterTxStatusEvent)
 	ed.RegisterHandler(&RegisterBlockEvent{}, ed.handleRegisterBlockEvent)
 	ed.RegisterHandler(&RegisterFilteredBlockEvent{}, ed.handleRegisterFilteredBlockEvent)
+	ed.RegisterHandler(&RegisterBlockAndPrivateDataEvent{}, ed.handleRegisterBlockAndPrivateDataEvent)
 	ed.RegisterHandler(&UnregisterEvent{}, ed.handleUnregisterEvent)
 	ed.RegisterHandler(&StopEvent{}, ed.HandleStopEvent)
 	ed.RegisterHandler(&TransferEvent{}, ed.HandleTransferEvent)
@@ -221,6 +224,15 @@ func (ed *Dispatcher) clearFilteredBlockRegistrations(closeChannel bool) {
 	ed.filteredBlockRegistrations = nil
 }
 
+func (ed *Dispatcher) clearBlockAndPrivateDataRegistrations(closeChannel bool) {
+	if closeChannel {
+		for _, reg := range ed.filteredBlockRegistrations {
+			close(reg.Eventch)
+		}
+	}
+	ed.filteredBlockRegistrations = nil
+}
+
 // clearTxRegistrations removes all transaction registrations and closes the corresponding event channels.
 // The listener will receive a 'closed' event to indicate that the channel has been closed.
 func (ed *Dispatcher) clearTxRegistrations(closeChannel bool) {
@@ -314,6 +326,16 @@ func (ed *Dispatcher) registerFilteredBlockEvent(reg *FilteredBlockReg) {
 	ed.filteredBlockRegistrations = append(ed.filteredBlockRegistrations, reg)
 }
 
+func (ed *Dispatcher) handleRegisterBlockAndPrivateDataEvent(e Event) {
+	event := e.(*RegisterBlockAndPrivateDataEvent)
+	ed.registerBlockAndPrivateDataEvent(event.Reg)
+	event.RegCh <- event.Reg
+}
+
+func (ed *Dispatcher) registerBlockAndPrivateDataEvent(reg *BlockAndPrivateDataReg) {
+	ed.blockAndPrivateDataRegistrations = append(ed.blockAndPrivateDataRegistrations, reg)
+}
+
 func (ed *Dispatcher) handleRegisterCCEvent(e Event) {
 	event := e.(*RegisterChaincodeEvent)
 
@@ -366,6 +388,8 @@ func (ed *Dispatcher) handleUnregisterEvent(e Event) {
 		err = ed.unregisterBlockEvents(registration)
 	case *FilteredBlockReg:
 		err = ed.unregisterFilteredBlockEvents(registration)
+	case *BlockAndPrivateDataReg:
+		err = ed.unregisterBlockAndPrivateDataEvents(registration)
 	case *ChaincodeReg:
 		err = ed.unregisterCCEvents(registration)
 	case *TxStatusReg:
@@ -392,14 +416,15 @@ func (ed *Dispatcher) handleRegistrationInfoEvent(e Event) {
 	evt := e.(*RegistrationInfoEvent)
 
 	regInfo := &RegistrationInfo{
-		NumBlockRegistrations:         len(ed.blockRegistrations),
-		NumFilteredBlockRegistrations: len(ed.filteredBlockRegistrations),
-		NumCCRegistrations:            len(ed.ccRegistrations),
-		NumTxStatusRegistrations:      len(ed.txRegistrations),
+		NumBlockRegistrations:               len(ed.blockRegistrations),
+		NumFilteredBlockRegistrations:       len(ed.filteredBlockRegistrations),
+		NumBlockAndPrivateDataRegistrations: len(ed.blockAndPrivateDataRegistrations),
+		NumCCRegistrations:                  len(ed.ccRegistrations),
+		NumTxStatusRegistrations:            len(ed.txRegistrations),
 	}
 
 	regInfo.TotalRegistrations =
-		regInfo.NumBlockRegistrations + regInfo.NumFilteredBlockRegistrations + regInfo.NumCCRegistrations + regInfo.NumTxStatusRegistrations
+		regInfo.NumBlockRegistrations + regInfo.NumFilteredBlockRegistrations + regInfo.NumBlockAndPrivateDataRegistrations + regInfo.NumCCRegistrations + regInfo.NumTxStatusRegistrations
 
 	evt.RegInfoCh <- regInfo
 }
@@ -418,11 +443,12 @@ func (ed *Dispatcher) newSnapshot() fab.EventSnapshot {
 	}
 
 	return &snapshot{
-		lastBlockReceived:          ed.LastBlockNum(),
-		blockRegistrations:         ed.blockRegistrations,
-		filteredBlockRegistrations: ed.filteredBlockRegistrations,
-		ccRegistrations:            ccRegistrations,
-		txStatusRegistrations:      txRegistrations,
+		lastBlockReceived:                ed.LastBlockNum(),
+		blockRegistrations:               ed.blockRegistrations,
+		filteredBlockRegistrations:       ed.filteredBlockRegistrations,
+		blockAndPrivateDataRegistrations: ed.blockAndPrivateDataRegistrations,
+		ccRegistrations:                  ccRegistrations,
+		txStatusRegistrations:            txRegistrations,
 	}
 }
 
@@ -443,6 +469,26 @@ func (ed *Dispatcher) HandleBlock(block *cb.Block, sourceURL string) {
 	logger.Debug("Publishing block event...")
 	ed.publishBlockEvents(block, sourceURL)
 	ed.publishFilteredBlockEvents(toFilteredBlock(block), sourceURL)
+}
+
+// HandleBlockAndPrivataData
+func (ed *Dispatcher) HandleBlockAndPrivataData(pblock *pb.BlockAndPrivateData, sourceURL string) {
+	logger.Debugf("Handling private block event - Block #%d", pblock.Block.Header.Number)
+
+	if err := ed.updateLastBlockNum(pblock.Block.Header.Number); err != nil {
+		logger.Error(err.Error())
+		return
+	}
+
+	if ed.updateLastBlockInfoOnly {
+		ed.updateLastBlockInfoOnly = false
+		return
+	}
+
+	logger.Debug("Publishing private block event...")
+
+	ed.publishBlockAndPrivateDataEvents(pblock, sourceURL)
+	ed.publishFilteredBlockEvents(toFilteredBlock(pblock.Block), sourceURL)
 }
 
 // HandleFilteredBlock handles a filtered block event
@@ -482,6 +528,19 @@ func (ed *Dispatcher) unregisterFilteredBlockEvents(registration *FilteredBlockR
 			// Move the 0'th item to i and then delete the 0'th item
 			ed.filteredBlockRegistrations[i] = ed.filteredBlockRegistrations[0]
 			ed.filteredBlockRegistrations = ed.filteredBlockRegistrations[1:]
+			close(reg.Eventch)
+			return nil
+		}
+	}
+	return errors.New("the provided registration is invalid")
+}
+
+func (ed *Dispatcher) unregisterBlockAndPrivateDataEvents(registration *BlockAndPrivateDataReg) error {
+	for i, reg := range ed.blockAndPrivateDataRegistrations {
+		if reg == registration {
+			// Move the 0'th item to i and then delete the 0'th item
+			ed.blockAndPrivateDataRegistrations[i] = ed.blockAndPrivateDataRegistrations[0]
+			ed.blockAndPrivateDataRegistrations = ed.blockAndPrivateDataRegistrations[1:]
 			close(reg.Eventch)
 			return nil
 		}
@@ -592,6 +651,35 @@ func checkFilteredBlockRegistrations(ed *Dispatcher, fblock *pb.FilteredBlock, s
 	}
 }
 
+func (ed *Dispatcher) publishBlockAndPrivateDataEvents(pblock *pb.BlockAndPrivateData, sourceURL string) {
+	if pblock == nil {
+		logger.Warn("private block is nil. Event will not be published")
+		return
+	}
+	checkBlockAndPrivateDataRegistrations(ed, pblock, sourceURL)
+
+}
+
+func checkBlockAndPrivateDataRegistrations(ed *Dispatcher, pblock *pb.BlockAndPrivateData, sourceURL string) {
+	for _, reg := range ed.blockAndPrivateDataRegistrations {
+		if ed.eventConsumerTimeout < 0 {
+			select {
+			case reg.Eventch <- NewBlockAndPrivateDataEvent(pblock, sourceURL):
+			default:
+				logger.Warn("Unable to send to filtered block event channel.")
+			}
+		} else if ed.eventConsumerTimeout == 0 {
+			reg.Eventch <- NewBlockAndPrivateDataEvent(pblock, sourceURL)
+		} else {
+			select {
+			case reg.Eventch <- NewBlockAndPrivateDataEvent(pblock, sourceURL):
+			case <-time.After(ed.eventConsumerTimeout):
+				logger.Warn("Timed out sending filtered block event.")
+			}
+		}
+	}
+}
+
 func (ed *Dispatcher) publishTxStatusEvents(tx *pb.FilteredTransaction, blockNum uint64, sourceURL string) {
 	logger.Debugf("Publishing Tx Status event for TxID [%s]...", tx.Txid)
 	if reg, ok := ed.txRegistrations[tx.Txid]; ok {
@@ -660,6 +748,7 @@ func getCCKey(ccID, eventFilter string) string {
 	return ccID + "/" + eventFilter
 }
 
+//
 func toFilteredBlock(block *cb.Block) *pb.FilteredBlock {
 	var channelID string
 	var filteredTxs []*pb.FilteredTransaction
@@ -718,6 +807,43 @@ func getFilteredTx(data []byte, txValidationCode pb.TxValidationCode) (*pb.Filte
 	return filteredTx, channelHeader.ChannelId, nil
 }
 
+func getTx(data []byte, txValidationCode pb.TxValidationCode) (*rwsetutil.TxRwSet, string, error) {
+	env, err := protoutil.GetEnvelopeFromBlock(data)
+	if err != nil {
+		return nil, "", errors.Wrap(err, "error extracting Envelope from block")
+	}
+	if env == nil {
+		return nil, "", errors.New("nil envelope")
+	}
+
+	payload, err := protoutil.UnmarshalPayload(env.Payload)
+	if err != nil {
+		return nil, "", errors.Wrap(err, "error extracting Payload from envelope")
+	}
+
+	channelHeaderBytes := payload.Header.ChannelHeader
+	channelHeader := &cb.ChannelHeader{}
+
+	if err := proto.Unmarshal(channelHeaderBytes, channelHeader); err != nil {
+		return nil, "", errors.Wrap(err, "error extracting ChannelHeader from payload")
+	}
+
+	// filteredTx := &pb.FilteredTransaction{
+	// 	Type:             cb.HeaderType(channelHeader.Type),
+	// 	Txid:             channelHeader.TxId,
+	// 	TxValidationCode: txValidationCode,
+	// }
+
+	if cb.HeaderType(channelHeader.Type) == cb.HeaderType_ENDORSER_TRANSACTION {
+		rwset, err := getFilteredTransactionRWSets(payload.Data)
+		if err != nil {
+			return nil, "", errors.Wrap(err, "error getting filtered transaction actions")
+		}
+		return rwset, channelHeader.ChannelId, nil
+	}
+	return nil, channelHeader.ChannelId, nil
+}
+
 func getFilteredTransactionActions(data []byte) (*pb.FilteredTransaction_TransactionActions, error) {
 	actions := &pb.FilteredTransaction_TransactionActions{
 		TransactionActions: &pb.FilteredTransactionActions{},
@@ -746,6 +872,34 @@ func getFilteredTransactionActions(data []byte) (*pb.FilteredTransaction_Transac
 		actions.TransactionActions.ChaincodeActions = append(actions.TransactionActions.ChaincodeActions, &pb.FilteredChaincodeAction{ChaincodeEvent: ccEvent})
 	}
 	return actions, nil
+}
+
+func getFilteredTransactionRWSets(data []byte) (*rwsetutil.TxRwSet, error) {
+	// actions := &pb.FilteredTransaction_TransactionActions{
+	// 	TransactionActions: &pb.FilteredTransactionActions{},
+	// }
+	tx, err := protoutil.UnmarshalTransaction(data)
+	if err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling transaction payload")
+	}
+	chaincodeActionPayload, err := protoutil.UnmarshalChaincodeActionPayload(tx.Actions[0].Payload)
+	if err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling chaincode action payload")
+	}
+	propRespPayload, err := protoutil.UnmarshalProposalResponsePayload(chaincodeActionPayload.Action.ProposalResponsePayload)
+	if err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling response payload")
+	}
+	ccAction, err := protoutil.UnmarshalChaincodeAction(propRespPayload.Extension)
+	if err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling chaincode action")
+	}
+	txRWSet := &rwsetutil.TxRwSet{}
+	if err := txRWSet.FromProtoBytes(ccAction.Results); err != nil {
+		return nil, errors.Wrap(err, "error getting results from transaction")
+	}
+
+	return txRWSet, nil
 }
 
 func (ed *Dispatcher) getState() int32 {

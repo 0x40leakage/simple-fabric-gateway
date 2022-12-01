@@ -148,6 +148,11 @@ func (c *ChannelConfig) QueryBlock(reqCtx reqContext.Context) (*common.Block, er
 	return c.queryBlockFromPeers(reqCtx)
 }
 
+// QuerySpecificBlock returns channel configuration
+func (c *ChannelConfig) QuerySpecificBlock(reqCtx reqContext.Context, index uint64) (*common.Block, error) {
+	return c.querySpecificBlockFromOrderer(reqCtx, index)
+}
+
 // Query returns channel configuration
 func (c *ChannelConfig) Query(reqCtx reqContext.Context) (fab.ChannelCfg, error) {
 
@@ -248,6 +253,10 @@ func (c *ChannelConfig) queryOrderer(reqCtx reqContext.Context) (*ChannelCfg, er
 func (c *ChannelConfig) queryBlockFromOrderer(reqCtx reqContext.Context) (*common.Block, error) {
 
 	return resource.LastConfigFromOrderer(reqCtx, c.channelID, c.opts.Orderer, resource.WithRetry(c.opts.RetryOpts))
+}
+
+func (c *ChannelConfig) querySpecificBlockFromOrderer(reqCtx reqContext.Context, index uint64) (*common.Block, error) {
+	return resource.SpecificBlockFromOrderer(reqCtx, c.channelID, index, c.opts.Orderer, resource.WithRetry(c.opts.RetryOpts))
 }
 
 //resolveOptsFromConfig loads opts from config if not loaded/initialized

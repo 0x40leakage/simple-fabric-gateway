@@ -7,20 +7,18 @@ SPDX-License-Identifier: Apache-2.0
 package mocks
 
 import (
-	"crypto/tls"
 	"path/filepath"
 	"time"
 
+	gmTLS "github.com/Hyperledger-TWGC/ccs-gm/tls"
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
-	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/endpoint"
-	"github.com/hyperledger/fabric-sdk-go/test/metadata"
-
-	"crypto/x509"
-
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/msp"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/test/mockfab"
 	commtls "github.com/hyperledger/fabric-sdk-go/pkg/core/config/comm/tls"
+	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/endpoint"
+	"github.com/hyperledger/fabric-sdk-go/test/metadata"
 	"github.com/pkg/errors"
 )
 
@@ -156,7 +154,7 @@ func (c *MockConfig) TLSCACertPool() commtls.CertPool {
 	} else if c.CustomTLSCACertPool != nil {
 		return c.CustomTLSCACertPool
 	}
-	return &mockfab.MockCertPool{CertPool: x509.NewCertPool()}
+	return &mockfab.MockCertPool{CertPool: ccsX509.NewCertPool()}
 }
 
 // TcertBatchSize ...
@@ -177,6 +175,30 @@ func (c *MockConfig) SecurityLevel() int {
 
 //SecurityProviderLibPath will be set only if provider is PKCS11
 func (c *MockConfig) SecurityProviderLibPath() string {
+	return ""
+}
+
+func (c *MockConfig) SecurityProviderAlgorithm() string {
+	return ""
+}
+
+func (c *MockConfig) SecurityImplType() string {
+	return ""
+}
+
+func (c *MockConfig) SecurityLibrary() string {
+	return ""
+}
+
+func (c *MockConfig) SecurityIP() string {
+	return ""
+}
+
+func (c *MockConfig) SecurityPort() string {
+	return ""
+}
+
+func (c *MockConfig) SecurityPassword() string {
 	return ""
 }
 
@@ -336,7 +358,7 @@ func (c *MockConfig) IsSecurityEnabled() bool {
 }
 
 // TLSClientCerts ...
-func (c *MockConfig) TLSClientCerts() []tls.Certificate {
+func (c *MockConfig) TLSClientCerts() []gmTLS.Certificate {
 	return nil
 }
 

@@ -53,6 +53,11 @@ type RegisterFilteredBlockEvent struct {
 	Reg *FilteredBlockReg
 }
 
+type RegisterBlockAndPrivateDataEvent struct {
+	RegisterEvent
+	Reg *BlockAndPrivateDataReg
+}
+
 // RegisterChaincodeEvent registers for chaincode events
 type RegisterChaincodeEvent struct {
 	RegisterEvent
@@ -72,11 +77,12 @@ type UnregisterEvent struct {
 
 // RegistrationInfo contains counts of the current event registrations
 type RegistrationInfo struct {
-	TotalRegistrations            int
-	NumBlockRegistrations         int
-	NumFilteredBlockRegistrations int
-	NumCCRegistrations            int
-	NumTxStatusRegistrations      int
+	TotalRegistrations                  int
+	NumBlockRegistrations               int
+	NumFilteredBlockRegistrations       int
+	NumBlockAndPrivateDataRegistrations int
+	NumCCRegistrations                  int
+	NumTxStatusRegistrations            int
 }
 
 // RegistrationInfoEvent requests registration information
@@ -96,6 +102,13 @@ func NewRegisterBlockEvent(filter fab.BlockFilter, eventch chan<- *fab.BlockEven
 func NewRegisterFilteredBlockEvent(eventch chan<- *fab.FilteredBlockEvent, respch chan<- fab.Registration, errCh chan<- error) *RegisterFilteredBlockEvent {
 	return &RegisterFilteredBlockEvent{
 		Reg:           &FilteredBlockReg{Eventch: eventch},
+		RegisterEvent: NewRegisterEvent(respch, errCh),
+	}
+}
+
+func NewRegisterBlockAndPrivateDataEvent(eventch chan<- *fab.BlockAndPrivateDataEvent, respch chan<- fab.Registration, errCh chan<- error) *RegisterBlockAndPrivateDataEvent {
+	return &RegisterBlockAndPrivateDataEvent{
+		Reg:           &BlockAndPrivateDataReg{Eventch: eventch},
 		RegisterEvent: NewRegisterEvent(respch, errCh),
 	}
 }
@@ -148,6 +161,13 @@ func NewFilteredBlockEvent(fblock *pb.FilteredBlock, sourceURL string) *fab.Filt
 	return &fab.FilteredBlockEvent{
 		FilteredBlock: fblock,
 		SourceURL:     sourceURL,
+	}
+}
+
+func NewBlockAndPrivateDataEvent(pblock *pb.BlockAndPrivateData, sourceURL string) *fab.BlockAndPrivateDataEvent {
+	return &fab.BlockAndPrivateDataEvent{
+		BlockAndPrivateData: pblock,
+		SourceURL:           sourceURL,
 	}
 }
 

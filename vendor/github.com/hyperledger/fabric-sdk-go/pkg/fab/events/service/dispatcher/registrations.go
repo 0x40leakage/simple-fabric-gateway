@@ -24,6 +24,10 @@ type FilteredBlockReg struct {
 	Eventch chan<- *fab.FilteredBlockEvent
 }
 
+type BlockAndPrivateDataReg struct {
+	Eventch chan<- *fab.BlockAndPrivateDataEvent
+}
+
 // ChaincodeReg contains the data for a chaincode registration
 type ChaincodeReg struct {
 	ChaincodeID string
@@ -39,11 +43,12 @@ type TxStatusReg struct {
 }
 
 type snapshot struct {
-	lastBlockReceived          uint64
-	blockRegistrations         []*BlockReg
-	filteredBlockRegistrations []*FilteredBlockReg
-	ccRegistrations            []*ChaincodeReg
-	txStatusRegistrations      []*TxStatusReg
+	lastBlockReceived                uint64
+	blockRegistrations               []*BlockReg
+	filteredBlockRegistrations       []*FilteredBlockReg
+	blockAndPrivateDataRegistrations []*BlockAndPrivateDataReg
+	ccRegistrations                  []*ChaincodeReg
+	txStatusRegistrations            []*TxStatusReg
 }
 
 func (s *snapshot) LastBlockReceived() uint64 {

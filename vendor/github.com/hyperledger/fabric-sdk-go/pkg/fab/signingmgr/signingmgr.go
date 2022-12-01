@@ -9,7 +9,6 @@ package signingmgr
 import (
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 
-	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite"
 	"github.com/pkg/errors"
 )
 
@@ -24,8 +23,8 @@ type SigningManager struct {
 // @param {BCCSP} cryptoProvider - crypto provider
 // @param {Config} config - configuration provider
 // @returns {SigningManager} new signing manager
-func New(cryptoProvider core.CryptoSuite) (*SigningManager, error) {
-	return &SigningManager{cryptoProvider: cryptoProvider, hashOpts: cryptosuite.GetSHAOpts()}, nil
+func New(cryptoProvider core.CryptoSuite, hashOpts core.HashOpts) (*SigningManager, error) {
+	return &SigningManager{cryptoProvider: cryptoProvider, hashOpts: hashOpts}, nil
 }
 
 // Sign will sign the given object using provided key
@@ -48,4 +47,8 @@ func (mgr *SigningManager) Sign(object []byte, key core.Key) ([]byte, error) {
 		return nil, err
 	}
 	return signature, nil
+}
+
+func (mgr *SigningManager) GetHashOpts() core.HashOpts {
+	return mgr.hashOpts
 }

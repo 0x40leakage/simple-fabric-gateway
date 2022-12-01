@@ -9,4 +9,5 @@ package core
 // SigningManager signs object with provided key
 type SigningManager interface {
 	Sign([]byte, Key) ([]byte, error)
+	GetHashOpts() HashOpts
 }

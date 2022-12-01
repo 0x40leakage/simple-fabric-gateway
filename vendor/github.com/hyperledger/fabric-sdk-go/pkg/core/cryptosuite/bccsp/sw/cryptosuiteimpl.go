@@ -26,27 +26,27 @@ func GetSuiteByConfig(config core.CryptoSuiteConfig) (core.CryptoSuite, error) {
 	}
 
 	opts := getOptsByConfig(config)
-	bccsp, err := getBCCSPFromOpts(opts)
+	csp, err := getBCCSPFromOpts(opts)
 	if err != nil {
 		return nil, err
 	}
-	return wrapper.NewCryptoSuite(bccsp), nil
+
+	return wrapper.NewCryptoSuite(csp), nil
 }
 
 //GetSuiteWithDefaultEphemeral returns cryptosuite adaptor for bccsp with default ephemeral options (intended to aid testing)
 func GetSuiteWithDefaultEphemeral() (core.CryptoSuite, error) {
 	opts := getEphemeralOpts()
-
-	bccsp, err := getBCCSPFromOpts(opts)
+	csp, err := getBCCSPFromOpts(opts)
 	if err != nil {
 		return nil, err
 	}
-	return wrapper.NewCryptoSuite(bccsp), nil
+
+	return wrapper.NewCryptoSuite(csp), nil
 }
 
 func getBCCSPFromOpts(config *bccspSw.FactoryOpts) (bccsp.BCCSP, error) {
 	f := &bccspSw.SWFactory{}
-
 	csp, err := f.Get(config)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not initialize BCCSP %s", f.Name())
@@ -69,12 +69,14 @@ func getOptsByConfig(c core.CryptoSuiteConfig) *bccspSw.FactoryOpts {
 	opts := &bccspSw.SwOpts{
 		HashFamily: c.SecurityAlgorithm(),
 		SecLevel:   c.SecurityLevel(),
-		Library:    c.SecurityProviderLibPath(),
+		// 从配置文件中读取加密插件类型
+		Library: c.SecurityProviderLibPath(),
 		FileKeystore: &bccspSw.FileKeystoreOpts{
 			KeyStorePath: c.KeyStorePath(),
 		},
 	}
 	logger.Debug("Initialized SW cryptosuite")
+
 	return &bccspSw.FactoryOpts{SwOpts: opts}
 }
 
@@ -82,8 +84,8 @@ func getEphemeralOpts() *bccspSw.FactoryOpts {
 	opts := &bccspSw.SwOpts{
 		HashFamily: "SHA2",
 		SecLevel:   256,
-		Ephemeral:  false,
 	}
 	logger.Debug("Initialized ephemeral SW cryptosuite with default opts")
+
 	return &bccspSw.FactoryOpts{SwOpts: opts}
 }

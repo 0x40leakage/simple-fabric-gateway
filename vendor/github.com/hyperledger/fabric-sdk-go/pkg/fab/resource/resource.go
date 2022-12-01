@@ -9,8 +9,11 @@ package resource
 
 import (
 	reqContext "context"
+	ob "github.com/hyperledger/fabric-protos-go/orderer"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/channelconfig"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/pkg/errors"
@@ -135,6 +138,13 @@ func createChannelFromEnvelope(reqCtx reqContext.Context, request CreateChannelR
 func GenesisBlockFromOrderer(reqCtx reqContext.Context, channelName string, orderer fab.Orderer, opts ...Opt) (*common.Block, error) {
 	optionsValue := getOpts(opts...)
 	return retrieveBlock(reqCtx, []fab.Orderer{orderer}, channelName, newSpecificSeekPosition(0), optionsValue)
+}
+
+// SpecificBlockFromOrderer returns the specific block from the defined orderer that may be
+// used in a join request
+func SpecificBlockFromOrderer(reqCtx reqContext.Context, channelName string, index uint64, orderer fab.Orderer, opts ...Opt) (*common.Block, error) {
+	optionsValue := getOpts(opts...)
+	return retrieveBlock(reqCtx, []fab.Orderer{orderer}, channelName, newSpecificSeekPosition(index), optionsValue)
 }
 
 // LastConfigFromOrderer fetches the current configuration block for the specified channel
@@ -444,4 +454,34 @@ func ExtractConfigFromBlock(block *common.Block) (*common.Config, error) {
 		return nil, err
 	}
 	return cfgEnv.Config, nil
+}
+
+// GetBatchConfigFromExtractEnvelope 从配置块中获取切块配置
+func GetBatchConfigFromExtractEnvelope(block *common.Block) (batchTimeouts, maxMessageCount, absoluteMaxBytes, PreferredMaxBytes uint32, err error) {
+	var config *common.Config
+	config, err = ExtractConfigFromBlock(block)
+	if err != nil {
+		return
+	}
+	batchSizeConfig := config.ChannelGroup.Groups[channelconfig.OrdererGroupKey].Values[channelconfig.BatchSizeKey].Value
+	batchTimeoutConfig := config.ChannelGroup.Groups[channelconfig.OrdererGroupKey].Values[channelconfig.BatchTimeoutKey].Value
+
+	batchSize := ob.BatchSize{}
+	if err = proto.Unmarshal(batchSizeConfig, &batchSize); err != nil {
+		return
+	}
+	batchTimeOut := ob.BatchTimeout{}
+	if err = proto.Unmarshal(batchTimeoutConfig, &batchTimeOut); err != nil {
+		return
+	}
+
+	Duration, err := time.ParseDuration(batchTimeOut.Timeout)
+	if err != nil {
+		return
+	}
+	batchTimeouts = uint32(Duration.Milliseconds())
+	maxMessageCount = batchSize.MaxMessageCount
+	absoluteMaxBytes = batchSize.AbsoluteMaxBytes
+	PreferredMaxBytes = batchSize.PreferredMaxBytes
+	return
 }

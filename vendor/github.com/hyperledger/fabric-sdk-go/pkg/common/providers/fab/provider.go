@@ -8,9 +8,9 @@ package fab
 
 import (
 	reqContext "context"
-	"crypto/tls"
 	"time"
 
+	gmTLS "github.com/Hyperledger-TWGC/ccs-gm/tls"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/options"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/msp"
@@ -102,7 +102,7 @@ type EndpointConfig interface {
 	ChannelPeers(name string) []ChannelPeer
 	ChannelOrderers(name string) []OrdererConfig
 	TLSCACertPool() commtls.CertPool
-	TLSClientCerts() []tls.Certificate
+	TLSClientCerts() []gmTLS.Certificate
 	CryptoConfigPath() string
 }
 

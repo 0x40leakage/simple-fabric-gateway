@@ -61,6 +61,11 @@ func (p *params) PermitBlockEvents() {
 	p.connProvider = deliverProvider
 }
 
+func (p *params) PermitPrivateDataEvents() {
+	logger.Debug("PermitPrivateDataEvents")
+	p.connProvider = deliverWithPrivateDataProvider
+}
+
 // SetConnectionProvider is only used in unit tests
 func (p *params) SetConnectionProvider(connProvider api.ConnectionProvider) {
 	logger.Debugf("ConnectionProvider: %#v", connProvider)

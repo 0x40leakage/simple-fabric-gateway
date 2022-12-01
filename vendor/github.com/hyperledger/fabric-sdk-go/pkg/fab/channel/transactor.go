@@ -33,6 +33,7 @@ func NewTransactor(reqCtx reqContext.Context, cfg fab.ChannelCfg, orderer fab.Or
 	if !ok {
 		return nil, errors.New("failed get client context from reqContext for create new transactor")
 	}
+
 	var orderers []fab.Orderer
 	if orderer != nil {
 		orderers = append(orderers, orderer)

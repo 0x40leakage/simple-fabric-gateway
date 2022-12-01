@@ -7,14 +7,14 @@ SPDX-License-Identifier: Apache-2.0
 package fab
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	gmTLS "github.com/Hyperledger-TWGC/ccs-gm/tls"
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/multi"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/retry"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/errors/status"
@@ -151,7 +151,7 @@ type EndpointConfig struct {
 	ordererConfigs           []fab.OrdererConfig
 	channelPeersByChannel    map[string][]fab.ChannelPeer
 	channelOrderersByChannel map[string][]fab.OrdererConfig
-	tlsClientCerts           []tls.Certificate
+	tlsClientCerts           []gmTLS.Certificate
 	peerMatchers             []matcherEntry
 	ordererMatchers          []matcherEntry
 	channelMatchers          []matcherEntry
@@ -291,23 +291,23 @@ func (c *EndpointConfig) TLSCACertPool() commtls.CertPool {
 }
 
 // TLSClientCerts loads the client's certs for mutual TLS
-func (c *EndpointConfig) TLSClientCerts() []tls.Certificate {
+func (c *EndpointConfig) TLSClientCerts() []gmTLS.Certificate {
 	return c.tlsClientCerts
 }
 
-func (c *EndpointConfig) loadPrivateKeyFromConfig(clientConfig *ClientConfig, clientCerts tls.Certificate, cb []byte) ([]tls.Certificate, error) {
+func (c *EndpointConfig) loadPrivateKeyFromConfig(clientConfig *ClientConfig, clientCerts gmTLS.Certificate, cb []byte) ([]gmTLS.Certificate, error) {
 
 	kb := clientConfig.TLSCerts.Client.Key.Bytes()
 
 	// load the key/cert pair from []byte
-	clientCerts, err := tls.X509KeyPair(cb, kb)
+	clientCerts, err := gmTLS.X509KeyPair(cb, kb)
 	if err != nil {
 		return nil, errors.Errorf("Error loading cert/key pair as TLS client credentials: %s", err)
 	}
 
 	logger.Debug("pk read from config successfully")
 
-	return []tls.Certificate{clientCerts}, nil
+	return []gmTLS.Certificate{clientCerts}, nil
 }
 
 // CryptoConfigPath ...
@@ -1156,7 +1156,7 @@ func (c *EndpointConfig) loadAllTLSConfig(configEntity *endpointConfigEntity) er
 	}
 
 	//preload TLS client certs
-	err = c.loadTLSClientCerts(configEntity)
+	err = c.loadTLSClientCert(configEntity)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load TLS client certs ")
 	}
@@ -1400,11 +1400,11 @@ func (c *EndpointConfig) loadTLSCertPool() error {
 // It checks the config for embedded pem files before looking for cert files
 func (c *EndpointConfig) loadTLSClientCerts(configEntity *endpointConfigEntity) error {
 
-	var clientCerts tls.Certificate
+	var clientCerts gmTLS.Certificate
 	cb := configEntity.Client.TLSCerts.Client.Cert.Bytes()
 	if len(cb) == 0 {
 		// if no cert found in the config, empty cert chain should be used
-		c.tlsClientCerts = []tls.Certificate{clientCerts}
+		c.tlsClientCerts = []gmTLS.Certificate{clientCerts}
 		return nil
 	}
 
@@ -1429,7 +1429,26 @@ func (c *EndpointConfig) loadTLSClientCerts(configEntity *endpointConfigEntity) 
 		return errors.WithMessage(err, "failed to load TLS client certs, failed to get X509KeyPair")
 	}
 
-	c.tlsClientCerts = []tls.Certificate{clientCerts}
+	c.tlsClientCerts = []gmTLS.Certificate{clientCerts}
+	return nil
+}
+
+// replace the origin func: loadTLSClientCerts
+func (c *EndpointConfig) loadTLSClientCert(configEntity *endpointConfigEntity) error {
+
+	var clientCerts gmTLS.Certificate
+	cb := configEntity.Client.TLSCerts.Client.Cert.Bytes()
+	if len(cb) == 0 {
+		// if no cert found in the config, empty cert chain should be used
+		c.tlsClientCerts = []gmTLS.Certificate{clientCerts}
+		return nil
+	}
+
+	tlsClientCerts, err := c.loadPrivateKeyFromConfig(&configEntity.Client, clientCerts, cb)
+	if err != nil {
+		return errors.WithMessage(err, "failed to load TLS client certs")
+	}
+	c.tlsClientCerts = tlsClientCerts
 	return nil
 }
 
@@ -1723,8 +1742,8 @@ func (c *EndpointConfig) verifyPeerConfig(p *fab.PeerConfig, peerName string, tl
 	return nil
 }
 
-func (c *EndpointConfig) loadTLSCerts() ([]*x509.Certificate, error) {
-	var certs []*x509.Certificate
+func (c *EndpointConfig) loadTLSCerts() ([]*ccsX509.Certificate, error) {
+	var certs []*ccsX509.Certificate
 	errs := multi.Errors{}
 
 	for _, peer := range c.networkPeers {

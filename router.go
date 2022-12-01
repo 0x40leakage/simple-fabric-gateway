@@ -1,48 +1,28 @@
 package main
 
-import (
-	"fmt"
-	"io"
-	"net/http"
-)
+// func insertLockedCRL(w http.ResponseWriter, r *http.Request) {
+// 	if err := UpdateCRLOfChannelConfig(ADD_LOCKED_CRL, fmt.Sprintf(userCertTemplate, USER1), "mychannel"); err != nil {
+// 		io.WriteString(w, err.Error())
+// 		return
+// 	}
+// 	io.WriteString(w, "ok")
+// }
 
-func insertGoodCRL(w http.ResponseWriter, r *http.Request) {
-	if err := UpdateCRLOfChannelConfig(ADD_VALID_CRL, fmt.Sprintf(userCertTemplate, USER1), "mychannel"); err != nil {
-		io.WriteString(w, err.Error())
-		return
-	}
-	io.WriteString(w, "ok")
-}
-func insertFrozenCRL(w http.ResponseWriter, r *http.Request) {
-	if err := UpdateCRLOfChannelConfig(ADD_FROZEN_CRL, fmt.Sprintf(userCertTemplate, ADMIN), "mychannel"); err != nil {
-		io.WriteString(w, err.Error())
-		return
-	}
-	io.WriteString(w, "ok")
-}
-func insertLockedCRL(w http.ResponseWriter, r *http.Request) {
-	if err := UpdateCRLOfChannelConfig(ADD_LOCKED_CRL, fmt.Sprintf(userCertTemplate, USER1), "mychannel"); err != nil {
-		io.WriteString(w, err.Error())
-		return
-	}
-	io.WriteString(w, "ok")
-}
+// func insertBadCRL(w http.ResponseWriter, r *http.Request) {
+// 	if err := UpdateCRLOfChannelConfig(ADD_INVALID_CRL, fmt.Sprintf(userCertTemplate, USER1), "mychannel"); err != nil {
+// 		io.WriteString(w, err.Error())
+// 		return
+// 	}
+// 	io.WriteString(w, "ok")
+// }
 
-func insertBadCRL(w http.ResponseWriter, r *http.Request) {
-	if err := UpdateCRLOfChannelConfig(ADD_INVALID_CRL, fmt.Sprintf(userCertTemplate, USER1), "mychannel"); err != nil {
-		io.WriteString(w, err.Error())
-		return
-	}
-	io.WriteString(w, "ok")
-}
-
-func cleanCRL(w http.ResponseWriter, r *http.Request) {
-	if err := UpdateCRLOfChannelConfig(CLEAN_CRL, fmt.Sprintf(userCertTemplate, USER1), "mychannel"); err != nil {
-		io.WriteString(w, err.Error())
-		return
-	}
-	io.WriteString(w, "ok")
-}
+// func cleanCRL(w http.ResponseWriter, r *http.Request) {
+// 	if err := UpdateCRLOfChannelConfig(CLEAN_CRL, fmt.Sprintf(userCertTemplate, USER1), "mychannel"); err != nil {
+// 		io.WriteString(w, err.Error())
+// 		return
+// 	}
+// 	io.WriteString(w, "ok")
+// }
 
 // func genValidCRL(w http.ResponseWriter, r *http.Request) {
 // 	crl, err := GenCRL()
@@ -54,10 +34,10 @@ func cleanCRL(w http.ResponseWriter, r *http.Request) {
 // 	io.WriteString(w, "ok")
 // }
 
-func operateFabricResource(w http.ResponseWriter, r *http.Request) {
-	if err := opFab(); err != nil {
-		io.WriteString(w, err.Error())
-		return
-	}
-	io.WriteString(w, "ok")
-}
+// func operateFabricResource(w http.ResponseWriter, r *http.Request) {
+// 	if err := opFab(); err != nil {
+// 		io.WriteString(w, err.Error())
+// 		return
+// 	}
+// 	io.WriteString(w, "ok")
+// }

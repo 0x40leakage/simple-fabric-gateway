@@ -39,6 +39,19 @@ var deliverProvider = func(context fabcontext.Client, chConfig fab.ChannelCfg, p
 	return deliverconn.New(context, chConfig, deliverconn.Deliver, peer.URL(), eventEndpoint.Opts()...)
 }
 
+// deliverWithPrivateDataProvider is the connection provider used for connecting to the DeliverWithPrivateData service
+var deliverWithPrivateDataProvider = func(context fabcontext.Client, chConfig fab.ChannelCfg, peer fab.Peer) (api.Connection, error) {
+	if peer == nil {
+		return nil, errors.New("Peer is nil")
+	}
+
+	eventEndpoint, ok := peer.(api.EventEndpoint)
+	if !ok {
+		panic("peer is not an EventEndpoint")
+	}
+	return deliverconn.New(context, chConfig, deliverconn.DeliverWithPrivateData, peer.URL(), eventEndpoint.Opts()...)
+}
+
 // deliverFilteredProvider is the connection provider used for connecting to the DeliverFiltered service
 var deliverFilteredProvider = func(context fabcontext.Client, chConfig fab.ChannelCfg, peer fab.Peer) (api.Connection, error) {
 	if peer == nil {

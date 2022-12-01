@@ -8,10 +8,10 @@ SPDX-License-Identifier: Apache-2.0
 package verifier
 
 import (
-	"crypto/x509"
 	"reflect"
 	"time"
 
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/utils"
 	commonx509 "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
@@ -71,7 +71,7 @@ func ValidateCertificateDates(certificate interface{}) error {
 		return nil
 	}
 	switch cert := certificate.(type) {
-	case *x509.Certificate:
+	case *ccsX509.Certificate:
 		if time.Now().UTC().Before(cert.NotBefore) {
 			return errors.New("Certificate provided is not valid until later date")
 		}
@@ -92,7 +92,7 @@ func ValidateCertificateDates(certificate interface{}) error {
 }
 
 //VerifyPeerCertificate verifies raw certs and chain certs for expiry and not yet valid dates
-func VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+func VerifyPeerCertificate(rawCerts [][]byte, verifiedChains [][]*ccsX509.Certificate) error {
 	for _, chaincert := range rawCerts {
 		cert, err := utils.DERToX509Certificate(chaincert)
 		if err != nil {

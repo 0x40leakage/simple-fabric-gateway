@@ -8,12 +8,12 @@ package msp
 
 import (
 	"encoding/json"
-
 	calib "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib/client/credential"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib/client/credential/x509"
 	caapi "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/sdkinternal/pkg/api"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/factory"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/pkcs11"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/msp"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/endpoint"
@@ -29,9 +29,9 @@ type fabricCAAdapter struct {
 	caClient    *calib.Client
 }
 
-func newFabricCAAdapter(caID string, cryptoSuite core.CryptoSuite, config msp.IdentityConfig) (*fabricCAAdapter, error) {
+func newFabricCAAdapter(caID string, cryptoSuite core.CryptoSuite, config msp.IdentityConfig, request *caapi.KeyRequest) (*fabricCAAdapter, error) {
 
-	caClient, err := createFabricCAClient(caID, cryptoSuite, config)
+	caClient, err := createFabricCAClient(caID, cryptoSuite, config, request)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +75,38 @@ func (c *fabricCAAdapter) Enroll(request *api.EnrollmentRequest) ([]byte, error)
 	return caresp.Identity.GetECert().Cert(), nil
 }
 
+// EnrollResp handles enrollment and response all ca info.
+func (c *fabricCAAdapter) EnrollResp(request *api.EnrollmentRequest) (*calib.EnrollmentResponse, error) {
+
+	logger.Debugf("Enrolling user [%s]", request.Name)
+
+	// TODO add attributes
+	careq := &caapi.EnrollmentRequest{
+		CAName:  c.caClient.Config.CAName,
+		Name:    request.Name,
+		Secret:  request.Secret,
+		Profile: request.Profile,
+		Type:    request.Type,
+		Label:   request.Label,
+		CSR:     createCSRInfo(request.CSR),
+	}
+
+	if len(request.AttrReqs) > 0 {
+		attrs := make([]*caapi.AttributeRequest, len(request.AttrReqs))
+		for i, a := range request.AttrReqs {
+			attrs[i] = &caapi.AttributeRequest{Name: a.Name, Optional: a.Optional}
+		}
+		careq.AttrReqs = attrs
+	}
+
+	caresp, err := c.caClient.Enroll(careq)
+	if err != nil {
+		return nil, errors.WithMessage(err, "enroll failed")
+	}
+
+	return caresp, nil
+}
+
 // Reenroll handles re-enrollment
 func (c *fabricCAAdapter) Reenroll(key core.Key, cert []byte, request *api.ReenrollmentRequest) ([]byte, error) {
 
@@ -105,6 +137,38 @@ func (c *fabricCAAdapter) Reenroll(key core.Key, cert []byte, request *api.Reenr
 	}
 
 	return caresp.Identity.GetECert().Cert(), nil
+}
+
+// ReenrollResp handles re-enrollment and response all cert info
+func (c *fabricCAAdapter) ReenrollResp(key core.Key, cert []byte, request *api.ReenrollmentRequest) (*calib.EnrollmentResponse, error) {
+
+	logger.Debugf("Re Enrolling user with provided key/cert pair for CA [%s]", c.caClient.Config.CAName)
+
+	careq := &caapi.ReenrollmentRequest{
+		CAName:  c.caClient.Config.CAName,
+		Profile: request.Profile,
+		Label:   request.Label,
+		CSR:     createCSRInfo(request.CSR),
+	}
+	if len(request.AttrReqs) > 0 {
+		attrs := make([]*caapi.AttributeRequest, len(request.AttrReqs))
+		for i, a := range request.AttrReqs {
+			attrs[i] = &caapi.AttributeRequest{Name: a.Name, Optional: a.Optional}
+		}
+		careq.AttrReqs = attrs
+	}
+
+	caidentity, err := c.newIdentity(key, cert)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to create CA signing identity")
+	}
+
+	caresp, err := caidentity.Reenroll(careq)
+	if err != nil {
+		return nil, errors.WithMessage(err, "reenroll failed")
+	}
+
+	return caresp, nil
 }
 
 // Register handles user registration
@@ -558,8 +622,10 @@ func createCSRInfo(csr *api.CSRInfo) *caapi.CSRInfo {
 	}
 
 	return &caapi.CSRInfo{
-		CN:    csr.CN,
-		Hosts: csr.Hosts,
+		CN:         csr.CN,
+		Hosts:      csr.Hosts,
+		KeyRequest: csr.KeyRequest,
+		Names:      csr.Names,
 	}
 }
 
@@ -609,7 +675,7 @@ func getIdentityResponses(ca string, responses []caapi.IdentityInfo) []*api.Iden
 	return ret
 }
 
-func createFabricCAClient(caID string, cryptoSuite core.CryptoSuite, config msp.IdentityConfig) (*calib.Client, error) {
+func createFabricCAClient(caID string, cryptoSuite core.CryptoSuite, config msp.IdentityConfig, request *caapi.KeyRequest) (*calib.Client, error) {
 
 	// Create new Fabric-ca client without configs
 	c := &calib.Client{
@@ -621,6 +687,7 @@ func createFabricCAClient(caID string, cryptoSuite core.CryptoSuite, config msp.
 		return nil, errors.Errorf("No CA '%s' in the configs", caID)
 	}
 
+	c.Config.CSR.KeyRequest = request
 	//set server CAName
 	c.Config.CAName = conf.CAName
 	//set server URL
@@ -658,6 +725,9 @@ func createFabricCAClient(caID string, cryptoSuite core.CryptoSuite, config msp.
 	c.Config.CSP = cryptoSuite
 
 	c.Config.Opts = &factory.FactoryOpts{ProviderName: multisuite.Opts}
+	if multisuite.Opts == "PKCS11" {
+		c.Config.Opts.Pkcs11Opts = &pkcs11.PKCS11Opts{Algorithm: multisuite.Algorithm}
+	}
 
 	err = c.Init()
 	if err != nil {
@@ -665,4 +735,160 @@ func createFabricCAClient(caID string, cryptoSuite core.CryptoSuite, config msp.
 	}
 
 	return c, nil
+}
+
+func (c *fabricCAAdapter) Freeze(key core.Key, cert []byte, request *api.FrozenRequest) (*api.FrozenResponse, error) {
+	logger.Debugf("Freeze cert [%v]", request)
+
+	req := caapi.FrozenRequest{
+		Name:   request.Name,
+		Serial: request.Serial,
+		AKI:    request.AKI,
+		CAName: request.CAName,
+		GenCRL: request.GenCRL,
+	}
+
+	registrar, err := c.newIdentity(key, cert)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create CA signing identity")
+	}
+
+	r, err := registrar.Freeze(&req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to freeze cert")
+	}
+
+	return getFreezeResponse(r), nil
+}
+
+func getFreezeResponse(response *caapi.FrozenResponse) *api.FrozenResponse {
+
+	var frozenCert []api.FrozenCert
+	for i := range response.FrozenCerts {
+		frozenCert = append(frozenCert, api.FrozenCert{Serial: response.FrozenCerts[i].Serial, AKI: response.FrozenCerts[i].AKI})
+	}
+
+	ret := &api.FrozenResponse{
+		FrozenCerts: frozenCert,
+		CRL:         response.CRL,
+	}
+
+	return ret
+}
+
+func (c *fabricCAAdapter) UnFreeze(key core.Key, cert []byte, request *api.UnfrozenRequest) (*api.UnfrozenResponse, error) {
+	logger.Debugf("UnFreeze cert [%v]", request)
+
+	req := caapi.UnfrozenRequest{
+		Name:   request.Name,
+		Serial: request.Serial,
+		AKI:    request.AKI,
+		CAName: request.CAName,
+		GenCRL: request.GenCRL,
+	}
+
+	registrar, err := c.newIdentity(key, cert)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create CA signing identity")
+	}
+
+	r, err := registrar.Unfreeze(&req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to freeze cert")
+	}
+
+	return getUnfreezeResponse(r), nil
+}
+
+func getUnfreezeResponse(response *caapi.UnfrozenResponse) *api.UnfrozenResponse {
+
+	var UnfrozenCert []api.UnfrozenCert
+	for i := range response.UnFrozenCerts {
+		UnfrozenCert = append(UnfrozenCert, api.UnfrozenCert{Serial: response.UnFrozenCerts[i].Serial, AKI: response.UnFrozenCerts[i].AKI})
+	}
+
+	ret := &api.UnfrozenResponse{
+		UnFrozenCerts: UnfrozenCert,
+		CRL:           response.CRL,
+	}
+
+	return ret
+}
+
+func (c *fabricCAAdapter) Lock(key core.Key, cert []byte, request *api.LockedRequest) (*api.LockedResponse, error) {
+	logger.Debugf("Lock cert [%v]", request)
+
+	req := caapi.LockedRequest{
+		Name:   request.Name,
+		Serial: request.Serial,
+		AKI:    request.AKI,
+		CAName: request.CAName,
+		GenCRL: request.GenCRL,
+	}
+
+	registrar, err := c.newIdentity(key, cert)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create CA signing identity")
+	}
+
+	r, err := registrar.Lock(&req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to freeze cert")
+	}
+
+	return getLockedResponse(r), nil
+}
+
+func getLockedResponse(response *caapi.LockedResponse) *api.LockedResponse {
+
+	var UnlockedCert []api.LockedCert
+	for i := range response.LockedCerts {
+		UnlockedCert = append(UnlockedCert, api.LockedCert{Serial: response.LockedCerts[i].Serial, AKI: response.LockedCerts[i].AKI})
+	}
+
+	ret := &api.LockedResponse{
+		LockedCerts: UnlockedCert,
+		CRL:         response.CRL,
+	}
+
+	return ret
+}
+
+func (c *fabricCAAdapter) UnLock(key core.Key, cert []byte, request *api.UnlockedRequest) (*api.UnlockedResponse, error) {
+	logger.Debugf("Lock cert [%v]", request)
+
+	req := caapi.UnlockedRequest{
+		Name:   request.Name,
+		Serial: request.Serial,
+		AKI:    request.AKI,
+		CAName: request.CAName,
+		GenCRL: request.GenCRL,
+	}
+
+	registrar, err := c.newIdentity(key, cert)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create CA signing identity")
+	}
+
+	r, err := registrar.Unlock(&req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to freeze cert")
+	}
+
+	return getUnlockedResponse(r), nil
+}
+
+func getUnlockedResponse(response *caapi.UnlockedResponse) *api.UnlockedResponse {
+
+	var UnlockedCert []api.UnlockedCert
+	for i := range response.UnlockedCerts {
+		UnlockedCert = append(UnlockedCert, api.UnlockedCert{Serial: response.UnlockedCerts[i].Serial, AKI: response.UnlockedCerts[i].AKI})
+	}
+
+	ret := &api.UnlockedResponse{
+		UnlockedCerts: UnlockedCert,
+		CRL:           response.CRL,
+	}
+
+	return ret
 }

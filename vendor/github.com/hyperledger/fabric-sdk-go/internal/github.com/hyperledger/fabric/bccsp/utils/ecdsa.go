@@ -17,6 +17,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/gm/ccsgm"
 )
 
 type ECDSASignature struct {
@@ -29,10 +31,11 @@ var (
 	// curve group order halved. We accept only low-S signatures.
 	// They are precomputed for efficiency reasons.
 	curveHalfOrders = map[elliptic.Curve]*big.Int{
-		elliptic.P224(): new(big.Int).Rsh(elliptic.P224().Params().N, 1),
-		elliptic.P256(): new(big.Int).Rsh(elliptic.P256().Params().N, 1),
-		elliptic.P384(): new(big.Int).Rsh(elliptic.P384().Params().N, 1),
-		elliptic.P521(): new(big.Int).Rsh(elliptic.P521().Params().N, 1),
+		elliptic.P224():               new(big.Int).Rsh(elliptic.P224().Params().N, 1),
+		elliptic.P256():               new(big.Int).Rsh(elliptic.P256().Params().N, 1),
+		elliptic.P384():               new(big.Int).Rsh(elliptic.P384().Params().N, 1),
+		elliptic.P521():               new(big.Int).Rsh(elliptic.P521().Params().N, 1),
+		ccsgm.NewSm2Curve().P256Sm2(): new(big.Int).Rsh(ccsgm.NewSm2Curve().P256Sm2().Params().N, 1),
 	}
 )
 

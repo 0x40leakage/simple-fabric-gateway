@@ -26,17 +26,16 @@ func GetSuiteByConfig(config core.CryptoSuiteConfig) (core.CryptoSuite, error) {
 	}
 
 	opts := getOptsByConfig(config)
-	bccsp, err := getBCCSPFromOpts(opts)
-
+	csp, err := getBCCSPFromOpts(opts)
 	if err != nil {
 		return nil, err
 	}
-	return &wrapper.CryptoSuite{BCCSP: bccsp}, nil
+
+	return &wrapper.CryptoSuite{BCCSP: csp}, nil
 }
 
-func getBCCSPFromOpts(config *pkcs11.PKCS11Opts) (bccsp.BCCSP, error) {
+func getBCCSPFromOpts(config *bccspPkcs11.FactoryOpts) (bccsp.BCCSP, error) {
 	f := &bccspPkcs11.PKCS11Factory{}
-
 	csp, err := f.Get(config)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Could not initialize BCCSP %s", f.Name())
@@ -45,15 +44,20 @@ func getBCCSPFromOpts(config *pkcs11.PKCS11Opts) (bccsp.BCCSP, error) {
 }
 
 //getOptsByConfig Returns Factory opts for given SDK config
-func getOptsByConfig(c core.CryptoSuiteConfig) *pkcs11.PKCS11Opts {
-	opts := &pkcs11.PKCS11Opts{
-		SecLevel:   c.SecurityLevel(),
-		HashFamily: c.SecurityAlgorithm(),
-		Library:    c.SecurityProviderLibPath(),
-		Pin:        c.SecurityProviderPin(),
-		Label:      c.SecurityProviderLabel(),
-		SoftVerify: c.SoftVerify(),
+func getOptsByConfig(c core.CryptoSuiteConfig) *bccspPkcs11.FactoryOpts {
+	opts := &bccspPkcs11.FactoryOpts{
+		ProviderName: "PKCS11",
+		Pkcs11Opts: &pkcs11.PKCS11Opts{
+			SecLevel:   c.SecurityLevel(),
+			HashFamily: c.SecurityAlgorithm(),
+			Algorithm:  c.SecurityProviderAlgorithm(),
+			Library:    c.SecurityProviderLibPath(),
+			Pin:        c.SecurityProviderPin(),
+			Label:      c.SecurityProviderLabel(),
+			SoftVerify: c.SoftVerify(),
+		},
 	}
+
 	logger.Debug("Initialized PKCS11 cryptosuite")
 
 	return opts

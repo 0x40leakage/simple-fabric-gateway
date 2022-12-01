@@ -14,6 +14,7 @@ import (
 	"crypto/rand"
 
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/cryptosuitebridge"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 
 	"fmt"
 	"io"
@@ -22,6 +23,14 @@ import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
 )
+
+func ComputeHash(data []byte, hashOpts core.HashOpts) []byte {
+	hash, err := cryptosuitebridge.GetDefault().Hash(data, hashOpts)
+	if err != nil {
+		panic(fmt.Errorf("failed computing SHA256 on [% x]", data))
+	}
+	return hash
+}
 
 // ComputeSHA256 returns SHA2-256 on data
 func ComputeSHA256(data []byte) (hash []byte) {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/hyperledger/fabric-protos-go/msp"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
 )
 
 // IdentityDeserializer is implemented by both MSPManger and MSP
@@ -168,6 +169,8 @@ type Identity interface {
 	// involve a byte-by-byte comparison (if the principal is
 	// a serialized identity) or may require MSP validation
 	SatisfiesPrincipal(principal *msp.MSPPrincipal) error
+
+	GetSignatureAlgorithm() x509.SignatureAlgorithm
 }
 
 // SigningIdentity is an extension of Identity to cover signing capabilities.

@@ -7,10 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package tls
 
 import (
-	"crypto/x509"
 	"sync"
 	"sync/atomic"
 
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/logging"
 )
 
@@ -20,18 +20,18 @@ var logger = logging.NewLogger("fabsdk/core")
 // cert pool implementation.
 type CertPool interface {
 	// Get returns the cert pool, optionally adding the provided certs
-	Get() (*x509.CertPool, error)
+	Get() (*ccsX509.CertPool, error)
 	//Add allows adding certificates to CertPool
 	//Call Get() after Add() to get the updated certpool
-	Add(certs ...*x509.Certificate)
+	Add(certs ...*ccsX509.Certificate)
 }
 
 // certPool is a thread safe wrapper around the x509 standard library
 // cert pool implementation.
 // It optionally allows loading the system trust store.
 type certPool struct {
-	certPool       *x509.CertPool
-	certs          []*x509.Certificate
+	certPool       *ccsX509.CertPool
+	certs          []*ccsX509.Certificate
 	certsByName    map[string][]int
 	lock           sync.RWMutex
 	dirty          int32
@@ -57,7 +57,7 @@ func NewCertPool(useSystemCertPool bool) (CertPool, error) {
 
 //Get returns certpool
 //if there are any certs in cert queue added by any previous Add() call, it adds those certs to certpool before returning
-func (c *certPool) Get() (*x509.CertPool, error) {
+func (c *certPool) Get() (*ccsX509.CertPool, error) {
 
 	//if dirty then add certs from queue to cert pool
 	if atomic.CompareAndSwapInt32(&c.dirty, 1, 0) {
@@ -75,7 +75,7 @@ func (c *certPool) Get() (*x509.CertPool, error) {
 }
 
 //Add adds given certs to cert pool queue, those certs will be added to certpool during subsequent Get() call
-func (c *certPool) Add(certs ...*x509.Certificate) {
+func (c *certPool) Add(certs ...*ccsX509.Certificate) {
 	if len(certs) == 0 {
 		return
 	}
@@ -122,11 +122,11 @@ func (c *certPool) swapCertPool() error {
 }
 
 //filterCerts remove certs from list if they already exist in pool or duplicate
-func (c *certPool) filterCerts(certs ...*x509.Certificate) []*x509.Certificate {
+func (c *certPool) filterCerts(certs ...*ccsX509.Certificate) []*ccsX509.Certificate {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	filtered := []*x509.Certificate{}
+	filtered := []*ccsX509.Certificate{}
 
 CertLoop:
 	for _, cert := range certs {
@@ -146,9 +146,9 @@ CertLoop:
 	return removeDuplicates(filtered...)
 }
 
-func removeDuplicates(certs ...*x509.Certificate) []*x509.Certificate {
-	encountered := map[*x509.Certificate]bool{}
-	result := []*x509.Certificate{}
+func removeDuplicates(certs ...*ccsX509.Certificate) []*ccsX509.Certificate {
+	encountered := map[*ccsX509.Certificate]bool{}
+	result := []*ccsX509.Certificate{}
 
 	for v := range certs {
 		if !encountered[certs[v]] {
@@ -159,11 +159,11 @@ func removeDuplicates(certs ...*x509.Certificate) []*x509.Certificate {
 	return result
 }
 
-func loadSystemCertPool(useSystemCertPool bool) (*x509.CertPool, error) {
+func loadSystemCertPool(useSystemCertPool bool) (*ccsX509.CertPool, error) {
 	if !useSystemCertPool {
-		return x509.NewCertPool(), nil
+		return ccsX509.NewCertPool(), nil
 	}
-	systemCertPool, err := x509.SystemCertPool()
+	systemCertPool, err := ccsX509.SystemCertPool()
 	if err != nil {
 		return nil, err
 	}

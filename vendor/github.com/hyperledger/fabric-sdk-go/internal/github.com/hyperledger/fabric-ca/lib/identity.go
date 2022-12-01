@@ -11,8 +11,11 @@ Please review third_party pinning scripts and patches for more details.
 package lib
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
 	"net/http"
 	"strconv"
 
@@ -138,6 +141,87 @@ func (i *Identity) Revoke(req *api.RevocationRequest) (*api.RevocationResponse, 
 	}
 	return &api.RevocationResponse{RevokedCerts: result.RevokedCerts, CRL: crl}, nil
 }
+
+// Freeze the identity associated with 'id'
+func (i *Identity) Freeze(req *api.FrozenRequest) (*api.FrozenResponse, error) {
+	log.Debugf("Entering identity.Freeze %+v", req)
+	reqBody, err := util.Marshal(req, "FreezeRequest")
+	if err != nil {
+		return nil, err
+	}
+	var result freezeResponseNet
+	err = i.Post("freeze", reqBody, &result, nil)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Successfully frozen certificates: %+v", req)
+	crl, err := util.B64Decode(result.CRL)
+	if err != nil {
+		return nil, err
+	}
+	return &api.FrozenResponse{FrozenCerts: result.FrozenCerts, CRL: crl}, nil
+}
+
+// Unfreeze the identity associated with 'id'
+func (i *Identity) Unfreeze(req *api.UnfrozenRequest) (*api.UnfrozenResponse, error) {
+	log.Debugf("Entering identity.Unfreeze %+v", req)
+	reqBody, err := util.Marshal(req, "UnfrozenRequest")
+	if err != nil {
+		return nil, err
+	}
+	var result unfreezeResponseNet
+	err = i.Post("unfreeze", reqBody, &result, nil)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Successfully unfrozen certificates: %+v", req)
+	crl, err := util.B64Decode(result.CRL)
+	if err != nil {
+		return nil, err
+	}
+	return &api.UnfrozenResponse{UnFrozenCerts: result.UnfrozenCerts, CRL: crl}, nil
+}
+
+// Lock the identity associated with 'id'
+func (i *Identity) Lock(req *api.LockedRequest) (*api.LockedResponse, error) {
+	log.Debugf("Entering identity.Lock %+v", req)
+	reqBody, err := util.Marshal(req, "LockedRequest")
+	if err != nil {
+		return nil, err
+	}
+	var result lockResponseNet
+	err = i.Post("lock", reqBody, &result, nil)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Successfully locked certificates: %+v", req)
+	crl, err := util.B64Decode(result.CRL)
+	if err != nil {
+		return nil, err
+	}
+	return &api.LockedResponse{LockedCerts: result.LockedCerts, CRL: crl}, nil
+}
+
+// Unlock the identity associated with 'id'
+func (i *Identity) Unlock(req *api.UnlockedRequest) (*api.UnlockedResponse, error) {
+	log.Debugf("Entering identity.Unlock %+v", req)
+	reqBody, err := util.Marshal(req, "UnlockedRequest")
+	if err != nil {
+		return nil, err
+	}
+	var result unlockResponseNet
+	err = i.Post("unlock", reqBody, &result, nil)
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("Successfully unlocked certificates: %+v", req)
+	crl, err := util.B64Decode(result.CRL)
+	if err != nil {
+		return nil, err
+	}
+	return &api.UnlockedResponse{UnlockedCerts: result.UnlockedCerts, CRL: crl}, nil
+}
+
 
 // GenCRL generates CRL
 func (i *Identity) GenCRL(req *api.GenCRLRequest) (*api.GenCRLResponse, error) {
@@ -352,6 +436,51 @@ func (i *Identity) RemoveAffiliation(req *api.RemoveAffiliationRequest) (*api.Af
 
 	log.Debugf("Successfully removed affiliation")
 	return result, nil
+}
+
+// Store writes my identity info to disk
+func (i *Identity) Store() error {
+	if i.client == nil {
+		return errors.New("An identity with no client may not be stored")
+	}
+	var xinanFlag bool
+	if i.client.Config != nil && i.client.Config.CSR.KeyRequest != nil && i.client.Config.CSR.KeyRequest.Algo == "xinan" {
+		xinanFlag = true
+	}
+	for _, cred := range i.creds {
+		err := cred.Store()
+		if err != nil {
+			return err
+		}
+		if xinanFlag {
+			err = i.storeXinan()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (i *Identity) storeXinan() error {
+	if len(i.creds) < 1 {
+		return errors.New("identity credential is 0")
+	}
+	v, err := i.creds[0].Val()
+	if err != nil {
+		return errors.WithMessage(err, "getcreds error")
+	}
+
+	block, _ := pem.Decode(v.(*x509.Signer).Cert())
+	_, err = i.client.csp.KeyGen(&bccsp.XinAnSM2KeyGenOpts1{
+		Alias:     util.TmpAlias,
+		Cert:      []byte(base64.StdEncoding.EncodeToString(block.Bytes)),
+		Temporary: true,
+	})
+	if err != nil {
+		return errors.WithMessage(err, "csp keygen")
+	}
+	return nil
 }
 
 // Get sends a get request to an endpoint

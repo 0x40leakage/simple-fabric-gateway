@@ -23,7 +23,14 @@ type CryptoConfigOptions struct {
 	securityProviderLibPath
 	securityProviderPin
 	securityProviderLabel
+	securityProviderAlgorithm
 	keyStorePath
+
+	securityImplType
+	securityLibrary
+	securityIP
+	securityPort
+	securityPassword
 }
 
 type applier func()
@@ -74,9 +81,33 @@ type securityProviderLabel interface {
 	SecurityProviderLabel() string
 }
 
+type securityProviderAlgorithm interface {
+	SecurityProviderAlgorithm() string
+}
+
 // keyStorePath interface allows to uniquely override CryptoConfig interface's KeyStorePath() function
 type keyStorePath interface {
 	KeyStorePath() string
+}
+
+type securityImplType interface {
+	SecurityImplType() string
+}
+
+type securityLibrary interface {
+	SecurityLibrary() string
+}
+
+type securityIP interface {
+	SecurityIP() string
+}
+
+type securityPort interface {
+	SecurityPort() string
+}
+
+type securityPassword interface {
+	SecurityPassword() string
 }
 
 // BuildCryptoSuiteConfigFromOptions will return an CryptoConfig instance pre-built with Optional interfaces
@@ -108,7 +139,14 @@ func UpdateMissingOptsWithDefaultConfig(c *CryptoConfigOptions, d core.CryptoSui
 	s.set(c.securityProviderLibPath, nil, func() { c.securityProviderLibPath = d })
 	s.set(c.securityProviderPin, nil, func() { c.securityProviderPin = d })
 	s.set(c.securityProviderLabel, nil, func() { c.securityProviderLabel = d })
+	s.set(c.securityProviderAlgorithm, nil, func() { c.securityProviderAlgorithm = d })
 	s.set(c.keyStorePath, nil, func() { c.keyStorePath = d })
+
+	s.set(c.securityImplType, nil, func() { c.securityImplType = d })
+	s.set(c.securityLibrary, nil, func() { c.securityLibrary = d })
+	s.set(c.securityIP, nil, func() { c.securityIP = d })
+	s.set(c.securityPort, nil, func() { c.securityPort = d })
+	s.set(c.securityPassword, nil, func() { c.securityPassword = d })
 
 	return c
 }
@@ -116,7 +154,24 @@ func UpdateMissingOptsWithDefaultConfig(c *CryptoConfigOptions, d core.CryptoSui
 // IsCryptoConfigFullyOverridden will return true if all of the argument's sub interfaces is not nil
 // (ie CryptoSuiteConfig interface not fully overridden)
 func IsCryptoConfigFullyOverridden(c *CryptoConfigOptions) bool {
-	return !anyNil(c.isSecurityEnabled, c.securityAlgorithm, c.securityLevel, c.securityProvider, c.softVerify, c.securityProviderLibPath, c.securityProviderPin, c.securityProviderLabel, c.keyStorePath)
+	return !anyNil(
+		c.isSecurityEnabled,
+		c.securityAlgorithm,
+		c.securityLevel,
+		c.securityProvider,
+		c.softVerify,
+		c.securityProviderLibPath,
+		c.securityProviderPin,
+		c.securityProviderLabel,
+		c.securityProviderAlgorithm,
+		c.keyStorePath,
+
+		c.securityImplType,
+		c.securityLibrary,
+		c.securityIP,
+		c.securityPort,
+		c.securityPassword,
+	)
 }
 
 // will override CryptoSuiteConfig interface with functions provided by o (option)
@@ -132,7 +187,14 @@ func setCryptoConfigWithOptionInterface(c *CryptoConfigOptions, o interface{}) e
 	s.set(c.securityProviderLibPath, func() bool { _, ok := o.(securityProviderLibPath); return ok }, func() { c.securityProviderLibPath = o.(securityProviderLibPath) })
 	s.set(c.securityProviderPin, func() bool { _, ok := o.(securityProviderPin); return ok }, func() { c.securityProviderPin = o.(securityProviderPin) })
 	s.set(c.securityProviderLabel, func() bool { _, ok := o.(securityProviderLabel); return ok }, func() { c.securityProviderLabel = o.(securityProviderLabel) })
+	s.set(c.securityProviderAlgorithm, func() bool { _, ok := o.(securityProviderAlgorithm); return ok }, func() { c.securityProviderAlgorithm = o.(securityProviderAlgorithm) })
 	s.set(c.keyStorePath, func() bool { _, ok := o.(keyStorePath); return ok }, func() { c.keyStorePath = o.(keyStorePath) })
+
+	s.set(c.securityImplType, func() bool { _, ok := o.(securityImplType); return ok }, func() { c.securityImplType = o.(securityImplType) })
+	s.set(c.securityLibrary, func() bool { _, ok := o.(securityLibrary); return ok }, func() { c.securityLibrary = o.(securityLibrary) })
+	s.set(c.securityIP, func() bool { _, ok := o.(securityIP); return ok }, func() { c.securityIP = o.(securityIP) })
+	s.set(c.securityPort, func() bool { _, ok := o.(securityPort); return ok }, func() { c.securityPort = o.(securityPort) })
+	s.set(c.securityPassword, func() bool { _, ok := o.(securityPassword); return ok }, func() { c.securityPassword = o.(securityPassword) })
 
 	if !s.isSet {
 		return errors.Errorf("option %#v is not a sub interface of CryptoSuiteConfig, at least one of its functions must be implemented.", o)

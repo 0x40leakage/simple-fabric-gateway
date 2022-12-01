@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package mocks
 
 import (
+	calib "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib"
 	caapi "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/sdkinternal/pkg/api"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/hyperledger/fabric-sdk-go/pkg/msp/api"
@@ -28,9 +29,17 @@ func (mgr *MockCAClient) Enroll(request *api.EnrollmentRequest) error {
 	return errors.New("not implemented")
 }
 
+func (mgr *MockCAClient) EnrollAndStore(request *api.EnrollmentRequest) (*calib.EnrollmentResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
 // Reenroll re-enrolls a user
 func (mgr *MockCAClient) Reenroll(request *api.ReenrollmentRequest) error {
 	return errors.New("not implemented")
+}
+
+func (mgr *MockCAClient) ReenrollNotStore(request *api.ReenrollmentRequest) (*calib.EnrollmentResponse, error) {
+	return nil, errors.New("not implemented")
 }
 
 // Register registers a user with a Fabric network
@@ -100,5 +109,21 @@ func (mgr *MockCAClient) RemoveAffiliation(request *api.AffiliationRequest) (*ap
 
 // GetCAInfo returns generic CA information
 func (mgr *MockCAClient) GetCAInfo() (*api.GetCAInfoResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (mgr *MockCAClient) Freeze(request *api.FrozenRequest) (*api.FrozenResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (mgr *MockCAClient) UnFreeze(request *api.UnfrozenRequest) (*api.UnfrozenResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (mgr *MockCAClient) Lock(request *api.LockedRequest) (*api.LockedResponse, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (mgr *MockCAClient) UnLock(request *api.UnlockedRequest) (*api.UnlockedResponse, error) {
 	return nil, errors.New("not implemented")
 }

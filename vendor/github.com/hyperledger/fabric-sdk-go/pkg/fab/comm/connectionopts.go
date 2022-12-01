@@ -8,9 +8,9 @@ package comm
 
 import (
 	"context"
-	"crypto/x509"
 	"time"
 
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/options"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
 	"github.com/spf13/cast"
@@ -19,7 +19,7 @@ import (
 
 type params struct {
 	hostOverride    string
-	certificate     *x509.Certificate
+	certificate     *ccsX509.Certificate
 	keepAliveParams keepalive.ClientParameters
 	failFast        bool
 	insecure        bool
@@ -44,7 +44,7 @@ func WithHostOverride(value string) options.Opt {
 }
 
 // WithCertificate sets the X509 certificate used for the TLS connection
-func WithCertificate(value *x509.Certificate) options.Opt {
+func WithCertificate(value *ccsX509.Certificate) options.Opt {
 	return func(p options.Params) {
 		if setter, ok := p.(certificateSetter); ok {
 			setter.SetCertificate(value)
@@ -103,7 +103,7 @@ func (p *params) SetHostOverride(value string) {
 	p.hostOverride = value
 }
 
-func (p *params) SetCertificate(value *x509.Certificate) {
+func (p *params) SetCertificate(value *ccsX509.Certificate) {
 	if value != nil {
 		logger.Debugf("setting certificate [subject: %s, serial: %s]", value.Subject, value.SerialNumber)
 	} else {
@@ -142,7 +142,7 @@ type hostOverrideSetter interface {
 }
 
 type certificateSetter interface {
-	SetCertificate(value *x509.Certificate)
+	SetCertificate(value *ccsX509.Certificate)
 }
 
 type keepAliveParamsSetter interface {

@@ -41,20 +41,20 @@ func (f *SWFactory) Name() string {
 // Get returns an instance of BCCSP using Opts.
 func (f *SWFactory) Get(config *FactoryOpts) (bccsp.BCCSP, error) {
 	// Validate arguments
-	if config.SwOpts == nil {
+	if config == nil || config.SwOpts == nil {
 		return nil, errors.New("Invalid config. It must not be nil.")
 	}
 
+	swOpts := config.SwOpts
+
 	var ks bccsp.KeyStore
-	if config.SwOpts.Ephemeral {
-		ks = sw.NewDummyKeyStore()
-	} else if config.SwOpts.FileKeystore != nil {
-		fks, err := sw.NewFileBasedKeyStore(nil, config.SwOpts.FileKeystore.KeyStorePath, false)
+	if swOpts.FileKeystore != nil {
+		fks, err := sw.NewFileBasedKeyStore(nil, swOpts.FileKeystore.KeyStorePath, false)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Failed to initialize software key store")
 		}
 		ks = fks
-	} else if config.SwOpts.InmemKeystore != nil {
+	} else if swOpts.InmemKeystore != nil {
 		ks = sw.NewInMemoryKeyStore()
 	} else {
 		// Default to ephemeral key store
@@ -67,12 +67,9 @@ func (f *SWFactory) Get(config *FactoryOpts) (bccsp.BCCSP, error) {
 // SwOpts contains options for the SWFactory
 type SwOpts struct {
 	// Default algorithms when not specified (Deprecated?)
-	SecLevel   int    `mapstructure:"security" json:"security" yaml:"Security"`
-	HashFamily string `mapstructure:"hash" json:"hash" yaml:"Hash"`
-	Library    string `mapstructure:"library" json:"library" yaml:"Library"`
-
-	// Keystore Options
-	Ephemeral     bool               `mapstructure:"tempkeys,omitempty" json:"tempkeys,omitempty"`
+	SecLevel      int                `mapstructure:"security" json:"security" yaml:"Security"`
+	HashFamily    string             `mapstructure:"hash" json:"hash" yaml:"Hash"`
+	Library       string             `mapstructure:"library" json:"library" yaml:"library"`
 	FileKeystore  *FileKeystoreOpts  `mapstructure:"filekeystore,omitempty" json:"filekeystore,omitempty" yaml:"FileKeyStore"`
 	DummyKeystore *DummyKeystoreOpts `mapstructure:"dummykeystore,omitempty" json:"dummykeystore,omitempty"`
 	InmemKeystore *InmemKeystoreOpts `mapstructure:"inmemkeystore,omitempty" json:"inmemkeystore,omitempty"`

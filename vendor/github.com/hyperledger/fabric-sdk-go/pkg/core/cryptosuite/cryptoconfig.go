@@ -72,7 +72,7 @@ func (c *Config) SecurityProvider() string {
 	return strings.ToLower(cast.ToString(val))
 }
 
-//SecurityPlugin plugin std or gmsm
+//SecurityPlugin plugin std or ccsgm
 func (c *Config) SecurityPlugin() string {
 	val, ok := c.backend.Lookup("client.BCCSP.security.x509PluginType")
 	if !ok {
@@ -97,7 +97,7 @@ func (c *Config) SecurityProviderLibPath() string {
 	logger.Debugf("Configured BCCSP Lib Paths %s", libPaths)
 	var lib string
 	for _, path := range libPaths {
-		if _, err := os.Stat(strings.TrimSpace(path)); os.IsNotExist(err) {
+		if _, err := os.Stat(strings.TrimSpace(path)); err == nil || os.IsExist(err) {
 			lib = strings.TrimSpace(path)
 			break
 		}
@@ -120,8 +120,32 @@ func (c *Config) SecurityProviderLabel() string {
 	return c.backend.GetString("client.BCCSP.security.label")
 }
 
+func (c *Config) SecurityProviderAlgorithm() string {
+	return c.backend.GetString("client.BCCSP.security.algorithm")
+}
+
 // KeyStorePath returns the keystore path used by BCCSP
 func (c *Config) KeyStorePath() string {
 	keystorePath := pathvar.Subst(c.backend.GetString("client.credentialStore.cryptoStore.path"))
 	return filepath.Join(keystorePath, "keystore")
+}
+
+func (c *Config) SecurityImplType() string {
+	return c.backend.GetString("client.BCCSP.security.implType")
+}
+
+func (c *Config) SecurityLibrary() string {
+	return c.backend.GetString("client.BCCSP.security.library")
+}
+
+func (c *Config) SecurityIP() string {
+	return c.backend.GetString("client.BCCSP.security.ip")
+}
+
+func (c *Config) SecurityPort() string {
+	return c.backend.GetString("client.BCCSP.security.port")
+}
+
+func (c *Config) SecurityPassword() string {
+	return c.backend.GetString("client.BCCSP.security.password")
 }

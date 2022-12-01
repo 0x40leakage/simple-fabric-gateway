@@ -61,6 +61,14 @@ type CryptoSuite interface {
 	// Verify verifies signature against key k and digest
 	// The opts argument should be appropriate for the algorithm used.
 	Verify(k Key, signature, digest []byte, opts SignerOpts) (valid bool, err error)
+
+	// Encrypt encrypts plaintext using key k.
+	// The opts argument should be appropriate for the algorithm used.
+	Encrypt(k Key, plaintext []byte, opts EncrypterOpts) (ciphertext []byte, err error)
+
+	// Decrypt decrypts ciphertext using key k.
+	// The opts argument should be appropriate for the algorithm used.
+	Decrypt(k Key, ciphertext []byte, opts DecrypterOpts) (plaintext []byte, err error)
 }
 
 // Key represents a cryptographic key
@@ -97,6 +105,12 @@ type HashOpts interface {
 type SignerOpts interface {
 	crypto.SignerOpts
 }
+
+// EncrypterOpts contains options for encrypting with a CSP.
+type EncrypterOpts interface{}
+
+// DecrypterOpts contains options for decrypting with a CSP.
+type DecrypterOpts interface{}
 
 // KeyImportOpts contains options for importing the raw material of a key with a CSP.
 type KeyImportOpts interface {

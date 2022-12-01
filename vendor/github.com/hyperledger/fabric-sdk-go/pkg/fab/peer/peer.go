@@ -9,15 +9,13 @@ package peer
 import (
 	reqContext "context"
 
-	"crypto/x509"
-
-	"github.com/spf13/cast"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
-
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/common/verifier"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/logging"
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
+	"github.com/spf13/cast"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 var logger = logging.NewLogger("fabsdk/fab")
@@ -26,7 +24,7 @@ var logger = logging.NewLogger("fabsdk/fab")
 // HFC sends endorsement proposals, transaction ordering or query requests.
 type Peer struct {
 	config      fab.EndpointConfig
-	certificate *x509.Certificate
+	certificate *ccsX509.Certificate
 	serverName  string
 	processor   fab.ProposalProcessor
 	mspID       string
@@ -35,6 +33,7 @@ type Peer struct {
 	failFast    bool
 	inSecure    bool
 	commManager fab.CommManager
+	properties  map[fab.Property]interface{}
 }
 
 // Option describes a functional parameter for the New constructor
@@ -88,7 +87,7 @@ func WithURL(url string) Option {
 }
 
 // WithTLSCert is a functional option for the peer.New constructor that configures the peer's TLS certificate
-func WithTLSCert(certificate *x509.Certificate) Option {
+func WithTLSCert(certificate *ccsX509.Certificate) Option {
 	return func(p *Peer) error {
 		p.certificate = certificate
 
@@ -146,6 +145,8 @@ func FromPeerConfig(peerCfg *fab.NetworkPeer) Option {
 		p.mspID = peerCfg.MSPID
 		p.kap = getKeepAliveOptions(peerCfg)
 		p.failFast = getFailFast(peerCfg)
+		p.properties = peerCfg.Properties
+
 		return nil
 	}
 }
@@ -214,6 +215,11 @@ func (p *Peer) URL() string {
 // ProcessTransactionProposal sends the created proposal to peer for endorsement.
 func (p *Peer) ProcessTransactionProposal(ctx reqContext.Context, proposal fab.ProcessProposalRequest) (*fab.TransactionProposalResponse, error) {
 	return p.processor.ProcessTransactionProposal(ctx, proposal)
+}
+
+// Properties returns the properties of a peer.
+func (p *Peer) Properties() fab.Properties {
+	return p.properties
 }
 
 func (p *Peer) String() string {

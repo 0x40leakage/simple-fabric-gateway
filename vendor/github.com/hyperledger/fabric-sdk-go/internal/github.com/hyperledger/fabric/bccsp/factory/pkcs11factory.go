@@ -30,13 +30,15 @@ func (f *PKCS11Factory) Name() string {
 }
 
 // Get returns an instance of BCCSP using Opts.
-func (f *PKCS11Factory) Get(p11Opts *pkcs11.PKCS11Opts) (bccsp.BCCSP, error) {
+func (f *PKCS11Factory) Get(config *FactoryOpts) (bccsp.BCCSP, error) {
 	// Validate arguments
-	if p11Opts == nil {
+	if config == nil || config.Pkcs11Opts == nil {
 		return nil, errors.New("Invalid config. It must not be nil.")
 	}
 
-	ks := sw.NewDummyKeyStore()
+	p11Opts := config.Pkcs11Opts
 
+	//TODO: PKCS11 does not need a keystore, but we have not migrated all of PKCS11 BCCSP to PKCS11 yet
+	ks := sw.NewDummyKeyStore()
 	return pkcs11.New(*p11Opts, ks)
 }

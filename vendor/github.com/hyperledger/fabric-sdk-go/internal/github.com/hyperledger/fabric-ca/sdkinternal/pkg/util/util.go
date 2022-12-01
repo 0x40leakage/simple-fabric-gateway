@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/Hyperledger-TWGC/ccs-gm/sm2"
 	"io/ioutil"
 	"math/big"
 	mrand "math/rand"
@@ -139,7 +140,7 @@ func CreateToken(csp core.CryptoSuite, cert []byte, key core.Key, method, uri st
 	var token string
 
 	switch publicKey.(type) {
-	case *ecdsa.PublicKey:
+	case *ecdsa.PublicKey, *sm2.PublicKey:
 		token, err = GenECDSAToken(csp, cert, key, method, uri, body)
 		if err != nil {
 			return "", err

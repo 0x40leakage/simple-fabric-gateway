@@ -32,7 +32,9 @@ type CAInfoResponseNet struct {
 // EnrollmentResponseNet is the response to the /enroll request
 type EnrollmentResponseNet struct {
 	// Base64 encoded PEM-encoded ECert
-	Cert string
+	Cert          string
+	EncPrivateKey string
+	EncCert       string
 	// The server information
 	ServerInfo CAInfoResponseNet
 }

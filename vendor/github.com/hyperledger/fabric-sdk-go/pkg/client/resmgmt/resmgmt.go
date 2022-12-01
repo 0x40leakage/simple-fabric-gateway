@@ -807,6 +807,7 @@ func (rc *Client) sendCCProposal(reqCtx reqContext.Context, ccProposalType chain
 	if err != nil {
 		return fab.EmptyTransactionID, errors.WithMessage(err, "Unable to get channel service")
 	}
+
 	transactor, err := channelService.Transactor(reqCtx, opts.Orderer)
 	if err != nil {
 		return fab.EmptyTransactionID, errors.WithMessage(err, "get channel transactor failed")
@@ -1287,6 +1288,26 @@ func (rc *Client) QueryConfigFromOrderer(channelID string, options ...RequestOpt
 	defer cancel()
 
 	return channelConfig.Query(reqCtx)
+
+}
+
+// QuerySpecificBlockFromOrderer returns channel configuration block from orderer
+func (rc *Client) QuerySpecificBlockFromOrderer(channelID string, index uint64, options ...RequestOption) (*common.Block, error) {
+
+	opts, err := rc.prepareRequestOpts(options...)
+	if err != nil {
+		return nil, err
+	}
+
+	channelConfig, err := rc.getChannelConfig(channelID, opts)
+	if err != nil {
+		return nil, errors.WithMessage(err, "QueryConfig failed")
+	}
+
+	reqCtx, cancel := rc.createRequestContext(opts, fab.OrdererResponse)
+	defer cancel()
+
+	return channelConfig.QuerySpecificBlock(reqCtx, index)
 
 }
 

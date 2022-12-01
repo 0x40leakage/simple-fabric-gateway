@@ -769,6 +769,19 @@ func (msp *bccspmsp) getCertificationChainIdentifierFromChain(chain []*x509.Cert
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed getting hash function when computing certification chain identifier")
 	}
+
+	if hf == nil {
+		var b []byte
+		for i := 0; i < len(chain); i++ {
+			b = append(b, chain[i].Raw...)
+		}
+		digest, err := msp.bccsp.Hash(b, hashOpt)
+		if err != nil {
+			return nil, err
+		}
+		return digest, nil
+	}
+
 	for i := 0; i < len(chain); i++ {
 		hf.Write(chain[i].Raw)
 	}

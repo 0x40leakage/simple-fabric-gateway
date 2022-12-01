@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"hash"
 
+	"github.com/Hyperledger-TWGC/ccs-gm/sm3"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/gm/ccsgm"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -24,6 +26,8 @@ type config struct {
 	ellipticCurve elliptic.Curve
 	hashFunction  func() hash.Hash
 	aesBitLength  int
+
+	sm4KeyByteLength int
 }
 
 func (conf *config) setSecurityLevel(securityLevel int, hashFamily string) (err error) {
@@ -32,6 +36,8 @@ func (conf *config) setSecurityLevel(securityLevel int, hashFamily string) (err 
 		err = conf.setSecurityLevelSHA2(securityLevel)
 	case "SHA3":
 		err = conf.setSecurityLevelSHA3(securityLevel)
+	case "SM3":
+		err = conf.setSecurityLevelSM3()
 	default:
 		err = fmt.Errorf("Hash Family not supported [%s]", hashFamily)
 	}
@@ -49,7 +55,7 @@ func (conf *config) setSecurityLevelSHA2(level int) (err error) {
 		conf.hashFunction = sha512.New384
 		conf.aesBitLength = 32
 	default:
-		err = fmt.Errorf("Security level not supported [%d]", level)
+		err = fmt.Errorf("security level not supported [%d]", level)
 	}
 	return
 }
@@ -65,7 +71,15 @@ func (conf *config) setSecurityLevelSHA3(level int) (err error) {
 		conf.hashFunction = sha3.New384
 		conf.aesBitLength = 32
 	default:
-		err = fmt.Errorf("Security level not supported [%d]", level)
+		err = fmt.Errorf("security level not supported [%d]", level)
 	}
 	return
+}
+
+func (conf *config) setSecurityLevelSM3() error {
+	conf.ellipticCurve = ccsgm.NewSm2Curve().P256Sm2() // SM2-P-256
+	conf.hashFunction = sm3.New
+	conf.sm4KeyByteLength = 16 // 密钥长度为 128 比特
+
+	return nil
 }

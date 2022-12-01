@@ -82,6 +82,30 @@ type AnchorPeer struct {
 	Port int    `yaml:"Port"`
 }
 
+type YbftOptions struct {
+	ProposeTimeout        string `yaml:"ProposeTimeout"`
+	ProposeDeltaTimeout   string `yaml:"ProposeDeltaTimeout"`
+	PrevoteTimeout        string `yaml:"PrevoteTimeout"`
+	PrevoteDeltaTimeout   string `yaml:"PrevoteDeltaTimeout"`
+	PrecommitTimeout      string `yaml:"PrecommitTimeout"`
+	PrecommitDeltaTimeout string `yaml:"PrecommitDeltaTimeout"`
+	ProposeBlocks         uint32 `yaml:"ProposeBlocks"`
+}
+
+type YbftConsenter struct {
+	Host          string `yaml:"Host"`
+	Port          int    `yaml:"Port"`
+	ClientTlsCert string `yaml:"ClientTLSCert"`
+	ServerTlsCert string `yaml:"ServerTlsCert"`
+	MspId         string `yaml:"MspId"`
+	MspCert       string `yaml:"MspCert"`
+}
+
+type YbftConfigMetadata struct {
+	Consenters []*YbftConsenter `yaml:"Consenters"`
+	Options    *YbftOptions     `yaml:"Options"`
+}
+
 // Orderer contains configuration which is used for the
 // bootstrapping of an orderer by the provisional bootstrapper.
 type Orderer struct {
@@ -91,6 +115,7 @@ type Orderer struct {
 	BatchSize     BatchSize                `yaml:"BatchSize"`
 	Kafka         Kafka                    `yaml:"Kafka"`
 	EtcdRaft      *etcdraft.ConfigMetadata `yaml:"EtcdRaft"`
+	PBFT          *YbftConfigMetadata      `yaml:"PBFT"`
 	Organizations []*Organization          `yaml:"Organizations"`
 	MaxChannels   uint64                   `yaml:"MaxChannels"`
 	Capabilities  map[string]bool          `yaml:"Capabilities"`
@@ -107,4 +132,11 @@ type BatchSize struct {
 // Kafka contains configuration for the Kafka-based orderer.
 type Kafka struct {
 	Brokers []string `yaml:"Brokers"`
+}
+
+type StrategyPolicy struct {
+	Name                  string
+	Type                  int32  //3签名策略 0: "ANY",1: "ALL",2: "MAJORITY"
+	Policy                string // and、 or 、outof
+	ImplicitMetaSubPolicy string // Admins、Writers、Readers
 }

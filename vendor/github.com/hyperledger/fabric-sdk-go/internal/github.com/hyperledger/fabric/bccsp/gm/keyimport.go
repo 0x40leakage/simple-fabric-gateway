@@ -18,19 +18,27 @@ package gm
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"errors"
 	"fmt"
 	"unsafe"
 
+	"github.com/Hyperledger-TWGC/ccs-gm/sm2"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/bccsp/utils"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/crypto"
+	gminterface "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/gm"
+	flogging "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/logbridge"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/x509"
 )
 
-type sm4KeyImporter struct{}
+var logger = flogging.MustGetLogger("gmkey")
 
-func (*sm4KeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (bccsp.Key, error) {
+type sm4KeyImporter struct {
+	sm3 gminterface.Sm3
+}
+
+func (k *sm4KeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (bccsp.Key, error) {
 	sm4Raw, ok := raw.([]byte)
 	if !ok {
 		return nil, errors.New("Invalid raw material. Expected byte array.")
@@ -44,12 +52,19 @@ func (*sm4KeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (bcc
 		return nil, fmt.Errorf("Invalid Key Length [%d]. Must be 16 bytes", len(sm4Raw))
 	}
 
-	return &sm4PrivateKey{sm4Raw}, nil
+	ski, err := k.sm3.Hash(sm4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("Get ski error [%s]", err)
+	}
+
+	return &sm4PrivateKey{utils.Clone(sm4Raw), ski}, nil
 }
 
-type sm2PrivateKeyImporter struct{}
+type sm2PrivateKeyImporter struct {
+	sm3 gminterface.Sm3
+}
 
-func (*sm2PrivateKeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (bccsp.Key, error) {
+func (k *sm2PrivateKeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (bccsp.Key, error) {
 	der, ok := raw.([]byte)
 	if !ok {
 		return nil, errors.New("[sm2PrivateKeyImporter] Invalid raw material. Expected byte array.")
@@ -69,27 +84,45 @@ func (*sm2PrivateKeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpt
 		return nil, errors.New("Failed casting to sm2 private key. Invalid raw material.")
 	}
 
-	return &sm2PrivateKey{privKey: sk}, nil
+	skraw := elliptic.Marshal(sk.Curve, sk.X, sk.Y)
+	ski, err := k.sm3.Hash(skraw)
+	if err != nil {
+		return nil, fmt.Errorf("Get key ski error [%s]", err)
+	}
+	return &sm2PrivateKey{privKey: sk, ski: ski}, nil
 
 }
 
-type sm2PublicKeyImporter struct{}
+type sm2PublicKeyImporter struct {
+	sm3 gminterface.Sm3
+}
 
-func (*sm2PublicKeyImporter) KeyImport(pk interface{}, opts bccsp.KeyImportOpts) (bccsp.Key, error) {
+func (k *sm2PublicKeyImporter) KeyImport(pk interface{}, opts bccsp.KeyImportOpts) (bccsp.Key, error) {
+	var pub *crypto.PublicKey
 	switch pk.(type) {
+	case *sm2.PublicKey:
+		pkk := pk.(*sm2.PublicKey)
+		pub = &crypto.PublicKey{Curve: pkk.Curve, X: pkk.X, Y: pkk.Y}
 	case *crypto.PublicKey:
-		pkk := pk.(*crypto.PublicKey)
-		return &sm2PublicKey{pkk}, nil
+		pub = pk.(*crypto.PublicKey)
 	case *ecdsa.PublicKey:
 		ecdsaPk := pk.(*ecdsa.PublicKey)
-		pkk := (*crypto.PublicKey)(unsafe.Pointer(ecdsaPk))
-		return &sm2PublicKey{pkk}, nil
-	default:
-		return nil, errors.New("Certificate's public key type not recognized. Supported keys: sm2")
+		pub = (*crypto.PublicKey)(unsafe.Pointer(ecdsaPk))
 	}
+	if pub != nil {
+		raw := elliptic.Marshal(pub.Curve, pub.X, pub.Y)
+		ski, err := k.sm3.Hash(raw)
+		if err != nil {
+			return nil, fmt.Errorf("KeyImport error, failed to get ski for [%s]", err)
+		}
+		return &sm2PublicKey{pubKey: pub, ski: ski}, nil
+	}
+	return nil, errors.New("Certificate's public key type not recognized. Supported keys: sm2")
 }
 
-type x509PublicKeyImporter struct{}
+type x509PublicKeyImporter struct {
+	sm3 gminterface.Sm3
+}
 
 func (ki *x509PublicKeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (bccsp.Key, error) {
 	x509Cert, ok := raw.(*x509.Certificate)
@@ -98,6 +131,17 @@ func (ki *x509PublicKeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImport
 	}
 
 	pk := x509Cert.PublicKey
-	importer := sm2PublicKeyImporter{}
+	importer := sm2PublicKeyImporter{ki.sm3}
 	return importer.KeyImport(pk, opts)
+}
+
+type xinAnServerPublicKeyImporter struct{}
+
+func (ki *xinAnServerPublicKeyImporter) KeyImport(raw interface{}, opts bccsp.KeyImportOpts) (bccsp.Key, error) {
+	x509Cert, ok := raw.(*x509.Certificate)
+	if !ok {
+		logger.Errorf("invalid raw material. Expected *x509.Certificate.")
+		return nil, errors.New("invalid raw material. Expected *x509.Certificate.")
+	}
+	return &xinAnPubKey{cert: x509Cert}, nil
 }

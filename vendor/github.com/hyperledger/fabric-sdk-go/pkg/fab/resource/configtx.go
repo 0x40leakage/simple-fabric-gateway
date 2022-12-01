@@ -8,29 +8,32 @@ package resource
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
 	"github.com/golang/protobuf/proto"
-
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/channelconfig"
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/protoutil"
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/configtxgen/encoder"
-	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/configtxlator/update"
-	"github.com/pkg/errors"
-
-	localconfig "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/configtxgen/genesisconfig"
-
 	"github.com/hyperledger/fabric-config/protolator"
 	"github.com/hyperledger/fabric-protos-go/common"
 	cb "github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/channelconfig"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/util"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/protoutil"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/configtxgen/encoder"
+	localconfig "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/configtxgen/genesisconfig"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/configtxlator/update"
+	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/cryptosuitebridge"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/hyperledger/fabric-sdk-go/pkg/fab/resource/genesisconfig"
+
+	// "github.com/hyperledger/fabric-sdk-go/pkg/fabsdk"
+	"github.com/pkg/errors"
 )
 
 // See https://github.com/hyperledger/fabric/blob/be235fd3a236f792a525353d9f9586c8b0d4a61a/cmd/configtxgen/main.go
 
 // CreateGenesisBlock creates a genesis block for a channel
-func CreateGenesisBlock(config *genesisconfig.Profile, channelID string) ([]byte, error) {
+func CreateGenesisBlock(config *genesisconfig.Profile, channelID string, cryptoSuite core.CryptoSuite) ([]byte, error) {
 	localConfig, err := genesisToLocalConfig(config)
 	if err != nil {
 		return nil, err
@@ -44,16 +47,63 @@ func CreateGenesisBlock(config *genesisconfig.Profile, channelID string) ([]byte
 		return nil, errors.Errorf("refusing to generate block which is missing orderer section")
 	}
 	genesisBlock := pgen.GenesisBlockForChannel(channelID)
+	if cryptoSuite == nil {
+		logger.Info("cryptoSuite is nil, use defaultCryptoSuite")
+		return protoutil.Marshal(genesisBlock)
+	}
+
+	genesisBlock.Header.DataHash, err = cryptoSuite.Hash(util.ConcatenateBytes(genesisBlock.Data.Data...), cryptosuitebridge.GetSHA256Opts())
+	if err != nil {
+		logger.Info("err using cryptoSuite to computeHash, ", err)
+		return nil, err
+	}
 	logger.Debug("Writing genesis block")
+	logger.Infof("using spec cryptoSuite to compute blockDataHash, %s", hex.EncodeToString(genesisBlock.Header.DataHash))
+	return protoutil.Marshal(genesisBlock)
+}
+
+func CreateGenesisBlockWithHashOpts(config *genesisconfig.Profile, channelID string, cryptoSuite core.CryptoSuite, hashOpts core.HashOpts) ([]byte, error) {
+	localConfig, err := genesisToLocalConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	pgen, err := encoder.NewBootstrapper(localConfig)
+	if err != nil {
+		return nil, errors.WithMessage(err, "could not create bootstrapper")
+	}
+	logger.Debug("Generating genesis block")
+	if config.Orderer == nil {
+		return nil, errors.Errorf("refusing to generate block which is missing orderer section")
+	}
+	genesisBlock := pgen.GenesisBlockForChannelWithHashOpts(channelID, hashOpts)
+	if cryptoSuite == nil {
+		logger.Info("cryptoSuite is nil, use defaultCryptoSuite")
+		return protoutil.Marshal(genesisBlock)
+	}
+
+	genesisBlock.Header.DataHash, err = cryptoSuite.Hash(util.ConcatenateBytes(genesisBlock.Data.Data...), hashOpts)
+	if err != nil {
+		logger.Info("err using cryptoSuite to computeHash, ", err)
+		return nil, err
+	}
+	logger.Debug("Writing genesis block")
+	logger.Infof("using spec cryptoSuite to compute blockDataHash, %s", hex.EncodeToString(genesisBlock.Header.DataHash))
 	return protoutil.Marshal(genesisBlock)
 }
 
 // CreateGenesisBlockForOrderer creates a genesis block for a channel
-func CreateGenesisBlockForOrderer(config *genesisconfig.Profile, channelID string) ([]byte, error) {
+func CreateGenesisBlockForOrderer(config *genesisconfig.Profile, channelID string, cryptoSuite core.CryptoSuite) ([]byte, error) {
 	if config.Consortiums == nil {
 		return nil, errors.Errorf("Genesis block does not contain a consortiums group definition. This block cannot be used for orderer bootstrap.")
 	}
-	return CreateGenesisBlock(config, channelID)
+	return CreateGenesisBlock(config, channelID, cryptoSuite)
+}
+
+func CreateGenesisBlockForOrdererWithHashOpts(config *genesisconfig.Profile, channelID string, cryptoSuite core.CryptoSuite, hashOpts core.HashOpts) ([]byte, error) {
+	if config.Consortiums == nil {
+		return nil, errors.Errorf("Genesis block does not contain a consortiums group definition. This block cannot be used for orderer bootstrap.")
+	}
+	return CreateGenesisBlockWithHashOpts(config, channelID, cryptoSuite, hashOpts)
 }
 
 func genesisToLocalConfig(config *genesisconfig.Profile) (*localconfig.Profile, error) {
@@ -111,6 +161,27 @@ func CreateChannelCreateTx(conf, baseProfile *genesisconfig.Profile, channelID s
 	}
 
 	logger.Debug("Writing new channel tx")
+	return protoutil.Marshal(configtx)
+}
+
+func CreateChannelCreateTxByConfigUpdate(configUpdate *common.ConfigUpdate, channelID, Consortium string) ([]byte, error) {
+	logger.Debug("Generating new channel configtx by specified config update")
+
+	configUpdate.ChannelId = channelID
+	configUpdate.ReadSet.Values[channelconfig.ConsortiumKey] = &cb.ConfigValue{Version: 0}
+	configUpdate.WriteSet.Values[channelconfig.ConsortiumKey] = &cb.ConfigValue{
+		Version: 0,
+		Value: protoutil.MarshalOrPanic(&cb.Consortium{
+			Name: Consortium,
+		}),
+	}
+
+	configtx, err := encoder.MakeChannelCreationTransactionFromConfigUpdate(channelID, nil, configUpdate)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug("Generating new channel configtx by specified config update success")
 	return protoutil.Marshal(configtx)
 }
 

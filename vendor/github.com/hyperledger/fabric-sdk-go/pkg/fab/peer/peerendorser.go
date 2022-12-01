@@ -8,17 +8,10 @@ package peer
 
 import (
 	reqContext "context"
-	"crypto/x509"
 	"regexp"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/keepalive"
-	grpcstatus "google.golang.org/grpc/status"
-
+	ccsX509 "github.com/Hyperledger-TWGC/ccs-gm/x509"
 	"github.com/hyperledger/fabric-protos-go/common"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/protoutil"
@@ -28,6 +21,11 @@ import (
 	"github.com/hyperledger/fabric-sdk-go/pkg/context"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/comm"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/endpoint"
+	"github.com/pkg/errors"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 const (
@@ -48,7 +46,7 @@ type peerEndorser struct {
 
 type peerEndorserRequest struct {
 	target             string
-	certificate        *x509.Certificate
+	certificate        *ccsX509.Certificate
 	serverHostOverride string
 	config             fab.EndpointConfig
 	kap                keepalive.ClientParameters
@@ -75,7 +73,7 @@ func newPeerEndorser(endorseReq *peerEndorserRequest) (*peerEndorser, error) {
 			return nil, err
 		}
 		//verify if certificate was expired or not yet valid
-		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, verifiedChains [][]*ccsX509.Certificate) error {
 			return verifier.VerifyPeerCertificate(rawCerts, verifiedChains)
 		}
 		grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))

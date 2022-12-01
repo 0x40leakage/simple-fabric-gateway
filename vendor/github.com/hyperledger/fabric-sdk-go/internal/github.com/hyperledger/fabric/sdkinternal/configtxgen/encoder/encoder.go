@@ -11,8 +11,13 @@ Please review third_party pinning scripts and patches for more details.
 package encoder
 
 import (
+	"fmt"
+	"io/ioutil"
+	"time"
+
 	"github.com/golang/protobuf/proto"
 	cb "github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric-protos-go/orderer/ybft"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/channelconfig"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/common/genesis"
@@ -25,6 +30,7 @@ import (
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/configtxlator/update"
 	"github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkinternal/pkg/identity"
 	flogging "github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric/sdkpatch/logbridge"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/pkg/errors"
 )
 
@@ -42,8 +48,10 @@ const (
 	ConsensusTypeSolo = "solo"
 	// ConsensusTypeKafka identifies the Kafka-based consensus implementation.
 	ConsensusTypeKafka = "kafka"
-	// ConsensusTypeKafka identifies the Kafka-based consensus implementation.
+	// ConsensusTypeEtcdRaft identifies the etcdraft-based consensus implementation.
 	ConsensusTypeEtcdRaft = "etcdraft"
+	// ConsensusTypeKafka identifies the ybft-based consensus implementation.
+	ConsensusTypePBFT = "PBFT"
 
 	// BlockValidationPolicyKey TODO
 	BlockValidationPolicyKey = "BlockValidation"
@@ -135,7 +143,10 @@ func AddPolicies(cg *cb.ConfigGroup, policyMap map[string]*genesisconfig.Policy,
 // value which is set to "/Channel/Orderer/Admins".
 func NewChannelGroup(conf *genesisconfig.Profile) (*cb.ConfigGroup, error) {
 	channelGroup := protoutil.NewConfigGroup()
-	if err := AddPolicies(channelGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
+	if len(conf.Policies) == 0 {
+		// 解决升级通道配置时继承原有通道策略的问题，当传入的orgConf中的Policies为空时，约定其为升级网络配置信息调用的，该情况下不需要设置策略，返回后会将原配置块中的策略赋值于其
+		logger.Warningf("Default policy emission is deprecated, please include policy specifications for the channel group in configtx.yaml")
+	} else if err := AddPolicies(channelGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
 		return nil, errors.Wrapf(err, "error adding policies to channel group")
 	}
 
@@ -210,6 +221,11 @@ func NewOrdererGroup(conf *genesisconfig.Orderer) (*cb.ConfigGroup, error) {
 		if consensusMetadata, err = channelconfig.MarshalEtcdRaftMetadata(conf.EtcdRaft); err != nil {
 			return nil, errors.Errorf("cannot marshal metadata for orderer type %s: %s", ConsensusTypeEtcdRaft, err)
 		}
+	case ConsensusTypePBFT:
+		if consensusMetadata, err = MarshalYbftMetadata(conf.PBFT); err != nil {
+			return nil, errors.Errorf("cannot marshal metadata for orderer type %s: %s", ConsensusTypePBFT, err)
+		}
+
 	default:
 		return nil, errors.Errorf("unknown orderer type: %s", conf.OrdererType)
 	}
@@ -228,6 +244,66 @@ func NewOrdererGroup(conf *genesisconfig.Orderer) (*cb.ConfigGroup, error) {
 	return ordererGroup, nil
 }
 
+// MarshalYbftMetadata serializes ybft metadata.
+func MarshalYbftMetadata(md *genesisconfig.YbftConfigMetadata) ([]byte, error) {
+	var res ybft.ConfigMetadata
+	for _, c := range md.Consenters {
+		// Expect the user to set the config value for client/server certs to the
+		// path where they are persisted locally, then load these files to memory.
+		clientCert, err := ioutil.ReadFile(c.ClientTlsCert)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load client cert for consenter %s:%d: %s", c.Host, c.Port, err)
+		}
+
+		serverCert, err := ioutil.ReadFile(c.ServerTlsCert)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load server cert for consenter %s:%d: %s", c.Host, c.Port, err)
+		}
+
+		mspCert, err := ioutil.ReadFile(c.MspCert)
+		if err != nil {
+			return nil, fmt.Errorf("cannot load server cert for consenter %s:%d: %s", c.Host, c.Port, err)
+		}
+		identity, err := msp.NewSerializedIdentity(c.MspId, mspCert)
+		if err != nil {
+			return nil, errors.Wrapf(err, "1 - Error loading MSP configuration for org: %s")
+		}
+		consenter := &ybft.Consenter{
+			Host:               c.Host,
+			Port:               uint32(c.Port),
+			ClientTlsCert:      clientCert,
+			ServerTlsCert:      serverCert,
+			SerializedIdentity: identity,
+		}
+		res.Consenters = append(res.Consenters, consenter)
+	}
+	var options ybft.Options
+	_, err1 := time.ParseDuration(md.Options.ProposeTimeout)
+	_, err2 := time.ParseDuration(md.Options.ProposeDeltaTimeout)
+	_, err3 := time.ParseDuration(md.Options.PrevoteTimeout)
+	_, err4 := time.ParseDuration(md.Options.PrevoteDeltaTimeout)
+	_, err5 := time.ParseDuration(md.Options.PrecommitTimeout)
+	_, err6 := time.ParseDuration(md.Options.PrecommitDeltaTimeout)
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil || err5 != nil || err6 != nil {
+		return nil, fmt.Errorf("it should be time duration,ProposeTimeout (%s,%v),ProposeDeltaTimeout (%s, %v),PrevoteTimeout (%s, %v), PrevoteDeltaTimeout (%s,%v), PrecommitTimeout (%s,%v),PrecommitDeltaTimeout (%s,%v)",
+			md.Options.ProposeTimeout, err1,
+			md.Options.ProposeDeltaTimeout, err2,
+			md.Options.PrevoteTimeout, err3,
+			md.Options.PrevoteDeltaTimeout, err4,
+			md.Options.PrecommitTimeout, err5,
+			md.Options.PrevoteDeltaTimeout, err6)
+	}
+	options.ProposeBlocks = md.Options.ProposeBlocks
+	options.ProposeDeltaTimeout = md.Options.ProposeDeltaTimeout
+	options.ProposeTimeout = md.Options.ProposeTimeout
+	options.PrevoteTimeout = md.Options.PrevoteTimeout
+	options.PrevoteDeltaTimeout = md.Options.PrevoteDeltaTimeout
+	options.PrecommitTimeout = md.Options.PrecommitTimeout
+	options.PrecommitDeltaTimeout = md.Options.PrecommitDeltaTimeout
+	res.Options = &options
+	return proto.Marshal(&res)
+}
+
 // NewConsortiumsGroup returns an org component of the channel configuration.  It defines the crypto material for the
 // organization (its MSP).  It sets the mod_policy of all elements to "Admins".
 func NewConsortiumOrgGroup(conf *genesisconfig.Organization) (*cb.ConfigGroup, error) {
@@ -243,7 +319,10 @@ func NewConsortiumOrgGroup(conf *genesisconfig.Organization) (*cb.ConfigGroup, e
 		return nil, errors.Wrapf(err, "1 - Error loading MSP configuration for org: %s", conf.Name)
 	}
 
-	if err := AddPolicies(consortiumsOrgGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
+	if len(conf.Policies) == 0 {
+		// 解决升级通道配置时继承原有通道策略的问题，当传入的orgConf中的Policies为空时，约定其为升级网络配置信息调用的，该情况下不需要设置策略，返回后会将原配置块中的策略赋值于其
+		logger.Warningf("Default policy emission is deprecated, please include policy specifications for the orderer org group %s in configtx.yaml", conf.Name)
+	} else if err := AddPolicies(consortiumsOrgGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
 		return nil, errors.Wrapf(err, "error adding policies to consortiums org group '%s'", conf.Name)
 	}
 
@@ -267,7 +346,10 @@ func NewOrdererOrgGroup(conf *genesisconfig.Organization) (*cb.ConfigGroup, erro
 		return nil, errors.Wrapf(err, "1 - Error loading MSP configuration for org: %s", conf.Name)
 	}
 
-	if err := AddPolicies(ordererOrgGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
+	if len(conf.Policies) == 0 {
+		// 解决升级通道配置时继承原有通道策略的问题，当传入的orgConf中的Policies为空时，约定其为升级网络配置信息调用的，该情况下不需要设置策略，返回后会将原配置块中的策略赋值于其
+		logger.Warningf("Default policy emission is deprecated, please include policy specifications for the orderer org group %s in configtx.yaml", conf.Name)
+	} else if err := AddPolicies(ordererOrgGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
 		return nil, errors.Wrapf(err, "error adding policies to orderer org group '%s'", conf.Name)
 	}
 
@@ -284,7 +366,10 @@ func NewOrdererOrgGroup(conf *genesisconfig.Organization) (*cb.ConfigGroup, erro
 // in application logic like chaincodes, and how these members may interact with the orderer.  It sets the mod_policy of all elements to "Admins".
 func NewApplicationGroup(conf *genesisconfig.Application) (*cb.ConfigGroup, error) {
 	applicationGroup := protoutil.NewConfigGroup()
-	if err := AddPolicies(applicationGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
+	if len(conf.Policies) == 0 {
+		// 解决升级通道配置时继承原有通道策略的问题，当传入的orgConf中的Policies为空时，约定其为升级网络配置信息调用的，该情况下不需要设置策略，返回后会将原配置块中的策略赋值于其
+		logger.Warningf("Default policy emission is deprecated, please include policy specifications for the application group in configtx.yaml")
+	} else if err := AddPolicies(applicationGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
 		return nil, errors.Wrapf(err, "error adding policies to application group")
 	}
 
@@ -323,7 +408,11 @@ func NewApplicationOrgGroup(conf *genesisconfig.Organization) (*cb.ConfigGroup, 
 		return nil, errors.Wrapf(err, "1 - Error loading MSP configuration for org %s", conf.Name)
 	}
 
-	if err := AddPolicies(applicationOrgGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
+	// Notice: 当系统链没有这个组织时，policies是必须的，当从系统链继承组织信息时，这个policies不会被使用
+	if len(conf.Policies) == 0 {
+		// 解决升级通道配置时继承原有通道策略的问题，当传入的orgConf中的Policies为空时，约定其为升级网络配置信息调用的，该情况下不需要设置策略，返回后会将原配置块中的策略赋值于其
+		logger.Warningf("Default policy emission is deprecated, please include policy specifications for the application org group %s in configtx.yaml", conf.Name)
+	} else if err := AddPolicies(applicationOrgGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
 		return nil, errors.Wrapf(err, "error adding policies to application org group %s", conf.Name)
 	}
 	addValue(applicationOrgGroup, channelconfig.MSPValue(mspConfig), channelconfig.AdminsPolicyKey)
@@ -447,9 +536,11 @@ func ConfigTemplateFromGroup(conf *genesisconfig.Profile, cg *cb.ConfigGroup) (*
 
 	template.Groups[channelconfig.ApplicationGroupKey] = &cb.ConfigGroup{
 		Groups: map[string]*cb.ConfigGroup{},
-		Policies: map[string]*cb.ConfigPolicy{
-			channelconfig.AdminsPolicyKey: {},
-		},
+		// Policies: map[string]*cb.ConfigPolicy{
+		// 	// Note: 这个会导致updt中/Channel/Application/Admins版本升为1，而实际上并不存在0，报错如下：
+		// 	// attempted to set key [Policy] /Channel/Application/Admins to version 1, but key does not exist
+		// 	channelconfig.AdminsPolicyKey: {},
+		// },
 	}
 
 	consortiums, ok := template.Groups[channelconfig.ConsortiumsGroupKey]
@@ -558,6 +649,38 @@ func MakeChannelCreationTransactionFromTemplate(
 	return protoutil.CreateSignedEnvelope(cb.HeaderType_CONFIG_UPDATE, channelID, signer, newConfigUpdateEnv, msgVersion, epoch)
 }
 
+// MakeChannelCreationTransactionFromConfigUpdate
+// creates a transaction for creating a channel by specified config update struct.
+// by yunphant
+func MakeChannelCreationTransactionFromConfigUpdate(
+	channelID string,
+	signer identity.SignerSerializer,
+	newChannelConfigUpdate *cb.ConfigUpdate,
+) (*cb.Envelope, error) {
+	newConfigUpdateEnv := &cb.ConfigUpdateEnvelope{
+		ConfigUpdate: protoutil.MarshalOrPanic(newChannelConfigUpdate),
+	}
+
+	if signer != nil {
+		sigHeader, err := protoutil.NewSignatureHeader(signer)
+		if err != nil {
+			return nil, errors.Wrap(err, "creating signature header failed")
+		}
+
+		newConfigUpdateEnv.Signatures = []*cb.ConfigSignature{{
+			SignatureHeader: protoutil.MarshalOrPanic(sigHeader),
+		}}
+
+		newConfigUpdateEnv.Signatures[0].Signature, err = signer.Sign(util.ConcatenateBytes(newConfigUpdateEnv.Signatures[0].SignatureHeader, newConfigUpdateEnv.ConfigUpdate))
+		if err != nil {
+			return nil, errors.Wrap(err, "signature failure over config update")
+		}
+
+	}
+
+	return protoutil.CreateSignedEnvelope(cb.HeaderType_CONFIG_UPDATE, channelID, signer, newConfigUpdateEnv, msgVersion, epoch)
+}
+
 // HasSkippedForeignOrgs is used to detect whether a configuration includes
 // org definitions which should not be parsed because this tool is being
 // run in a context where the user does not have access to that org's info
@@ -624,4 +747,8 @@ func (bs *Bootstrapper) GenesisBlock() *cb.Block {
 // GenesisBlockForChannel produces a genesis block for a given channel ID
 func (bs *Bootstrapper) GenesisBlockForChannel(channelID string) *cb.Block {
 	return genesis.NewFactoryImpl(bs.channelGroup).Block(channelID)
+}
+
+func (bs *Bootstrapper) GenesisBlockForChannelWithHashOpts(channelID string, hashOpts core.HashOpts) *cb.Block {
+	return genesis.NewFactoryImpl(bs.channelGroup).BlockWithHashOpts(channelID, hashOpts)
 }
