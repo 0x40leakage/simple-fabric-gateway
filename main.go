@@ -8,16 +8,17 @@ import (
 func main() {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/network/genesisblock", createGenesisBlock) // ok
-	mux.HandleFunc("/channel/setup", setupChannel)              // ok
-	mux.HandleFunc("/chaincode/deploy", deployChaincode)        // ok
-	mux.HandleFunc("/chaincode/invoke", invokeChaincode)        // ok
+	mux.HandleFunc("/network/genesisblock", createGenesisBlock)
+	mux.HandleFunc("/network/channelcreatetx", createChannelCreateTx)
+	mux.HandleFunc("/channel/setup", setupChannel)
+	mux.HandleFunc("/chaincode/deploy", deployChaincode)
+	mux.HandleFunc("/chaincode/invoke", invokeChaincode)
 
-	mux.HandleFunc("/gm/network/genesisblock", createGenesisBlock) // ok
-	// mux.HandleFunc("/gm/network/channelcreatetx", createChannelCreateTx)
-	mux.HandleFunc("/gm/channel/setup", setupChannel)       // ok
-	mux.HandleFunc("/gm/chaincode/deploy", deployChaincode) // ok
-	mux.HandleFunc("/gm/chaincode/invoke", invokeChaincode) // ok
+	mux.HandleFunc("/gm/network/genesisblock", createGenesisBlock)
+	mux.HandleFunc("/gm/network/channelcreatetx", createChannelCreateTx)
+	mux.HandleFunc("/gm/channel/setup", setupChannel)
+	mux.HandleFunc("/gm/chaincode/deploy", deployChaincode)
+	mux.HandleFunc("/gm/chaincode/invoke", invokeChaincode)
 
 	// mux.HandleFunc("/channel/config", getFabricCryptoConfig)
 

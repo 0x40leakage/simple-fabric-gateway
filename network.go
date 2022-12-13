@@ -32,6 +32,8 @@ const (
 	sdkAdmin = "Admin"
 )
 
+var channelCreateTx = fmt.Sprintf("/Users/slackbuffer/go/src/github.com/hyperledger/fabric/fabric-samples/test-network/channel-artifacts/%s.tx", channelName)
+
 func createGenesisBlock(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if strings.HasPrefix(r.RequestURI, "/gm") {
@@ -105,48 +107,165 @@ func doCreateGenesisBlock(sdkConfigFilePath string) error {
 	return nil
 }
 
-// func createChannelCreateTx(w http.ResponseWriter, r *http.Request) {
-// 	var err error
-// 	if strings.HasPrefix(r.RequestURI, "/gm") {
-// 		err = doCreateChannelCreateTx(gmConfigFilePath)
-// 	} else {
-// 		err = doCreateChannelCreateTx(configFilePath)
-// 	}
-// 	if err != nil {
-// 		log.Println(err.Error())
-// 		io.WriteString(w, err.Error())
-// 		return
-// 	}
-// 	io.WriteString(w, "create channel create tx ok")
-// }
+func createChannelCreateTx(w http.ResponseWriter, r *http.Request) {
+	var err error
+	if strings.HasPrefix(r.RequestURI, "/gm") {
+		err = doCreateChannelCreateTx(gmConfigFilePath)
+	} else {
+		err = doCreateChannelCreateTx(configFilePath)
+	}
+	if err != nil {
+		log.Println(err.Error())
+		io.WriteString(w, err.Error())
+		return
+	}
+	io.WriteString(w, "create channel create tx ok")
+}
 
-// func doCreateChannelCreateTx(sdkConfigFilePath string) error {
-// 	sdk, err := fabsdk.New(config.FromFile(sdkConfigFilePath))
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer sdk.Close()
-// 	clientContextProvider := sdk.Context(fabsdk.WithUser(sdkAdmin), fabsdk.WithOrg(sdkOrg))
-// 	cc, err := clientContextProvider()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	ho := cc.SigningManager().GetHashOpts()
+func doCreateChannelCreateTx(sdkConfigFilePath string) error {
+	// sdk, err := fabsdk.New(config.FromFile(sdkConfigFilePath))
+	// if err != nil {
+	// 	return err
+	// }
+	// defer sdk.Close()
+	// clientContextProvider := sdk.Context(fabsdk.WithUser(sdkAdmin), fabsdk.WithOrg(sdkOrg))
 
-// 	sdkOrg := &genesisconfig.Organization{
-// 		Name:   "Org1MSP",
-// 		ID:     "Org1MSP",
-// 		MSPDir: sdkOrgMSPDir,
-// 	}
-// 	conf := genesisconfig.ChannelConfig{
-// 		ChainID:       channelName,
-// 		Consortium:    genesisconfig.DefaultConsortium,
-// 		Organizations: []*genesisconfig.Organization{sdkOrg},
-// 	}
-// 	resource.CreateChannelCreateTx()
+	// cc, err := clientContextProvider()
+	// if err != nil {
+	// 	return err
+	// }
+	// ho := cc.SigningManager().GetHashOpts()
 
-// 	return nil
-// }
+	sdkOrg := &genesisconfig.Organization{
+		Name:    "Org1MSP",
+		ID:      "Org1MSP",
+		MSPDir:  sdkOrgMSPDir,
+		MSPType: "bccsp",
+		Policies: map[string]*genesisconfig.Policy{
+			"Admins": {
+				Type: "Signature",
+				Rule: "OR('Org1MSP.admin')",
+			},
+			"Readers": {
+				Type: "Signature",
+				Rule: "OR('Org1MSP.admin', 'Org1MSP.peer', 'Org1MSP.client')",
+			},
+			"Writers": {
+				Type: "Signature",
+				Rule: "OR('Org1MSP.admin', 'Org1MSP.client')",
+			},
+			"Endorsement": {
+				Type: "Signature",
+				Rule: "OR('Org1MSP.peer')",
+			},
+		},
+	}
+	org2 := &genesisconfig.Organization{
+		Name:    "Org2MSP",
+		ID:      "Org2MSP",
+		MSPDir:  org2MSPDir,
+		MSPType: "bccsp",
+		Policies: map[string]*genesisconfig.Policy{
+			"Admins": {
+				Type: "Signature",
+				Rule: "OR('Org2MSP.admin')",
+			},
+			"Readers": {
+				Type: "Signature",
+				Rule: "OR('Org2MSP.admin', 'Org2MSP.peer', 'Org2MSP.client')",
+			},
+			"Writers": {
+				Type: "Signature",
+				Rule: "OR('Org2MSP.admin', 'Org2MSP.client')",
+			},
+			"Endorsement": {
+				Type: "Signature",
+				Rule: "OR('Org2MSP.peer')",
+			},
+		},
+	}
+
+	gp := &genesisconfig.Profile{
+		Consortium: "SampleConsortium",
+		// Policies: map[string]*genesisconfig.Policy{
+		// 	"Admins": {
+		// 		Type: "ImplicitMeta",
+		// 		Rule: "ANY Admins",
+		// 	},
+		// 	"Readers": {
+		// 		Type: "ImplicitMeta",
+		// 		Rule: "ANY Readers",
+		// 	},
+		// 	"Writers": {
+		// 		Type: "ImplicitMeta",
+		// 		Rule: "ANY Writers",
+		// 	},
+		// 	"Endorsement": {
+		// 		Type: "ImplicitMeta",
+		// 		Rule: "ANY Writers",
+		// 	},
+		// },
+		Application: &genesisconfig.Application{
+			ACLs: map[string]string{
+				"_lifecycle/CommitChaincodeDefinition": "/Channel/Application/Writers",
+				"_lifecycle/QueryChaincodeDefinition":  "/Channel/Application/Readers",
+				"_lifecycle/QueryNamespaceDefinitions": "/Channel/Application/Readers",
+				"lscc/ChaincodeExists":                 "/Channel/Application/Readers",
+				"lscc/GetDeploymentSpec":               "/Channel/Application/Readers",
+				"lscc/GetChaincodeData":                "/Channel/Application/Readers",
+				"lscc/GetInstantiatedChaincodes":       "/Channel/Application/Readers",
+				"qscc/GetChainInfo":                    "/Channel/Application/Readers",
+				"qscc/GetBlockByNumber":                "/Channel/Application/Readers",
+				"qscc/GetBlockByHash":                  "/Channel/Application/Readers",
+				"qscc/GetTransactionByID":              "/Channel/Application/Readers",
+				"qscc/GetBlockByTxID":                  "/Channel/Application/Readers",
+				"cscc/GetConfigBlock":                  "/Channel/Application/Readers",
+				"cscc/GetConfigTree":                   "/Channel/Application/Readers",
+				"cscc/SimulateConfigTreeUpdate":        "/Channel/Application/Readers",
+				"peer/Propose":                         "/Channel/Application/Writers",
+				"peer/ChaincodeToChaincode":            "/Channel/Application/Readers",
+				"event/Block":                          "/Channel/Application/Readers",
+				"event/FilteredBlock":                  "/Channel/Application/Readers",
+			},
+			Organizations: []*genesisconfig.Organization{sdkOrg, org2},
+			Policies: map[string]*genesisconfig.Policy{
+				"LifecycleEndorsement": {
+					Type: "Signature",
+					Rule: "OR('Org1MSP.peer')",
+				},
+				"Endorsement": {
+					Type: "Signature",
+					Rule: "OR('Org1MSP.peer')",
+				},
+				"Readers": {
+					Type: "ImplicitMeta",
+					Rule: "ANY Readers",
+				},
+				"Writers": {
+					Type: "ImplicitMeta",
+					Rule: "ANY Writers",
+				},
+				"Admins": {
+					Type: "ImplicitMeta",
+					Rule: "MAJORITY Admins",
+				},
+			},
+			Capabilities: map[string]bool{
+				"V2_0": true,
+			},
+		},
+	}
+	cctBytes, err := resource.CreateChannelCreateTx(gp, nil, channelName)
+	if err != nil {
+		return err
+	}
+	err = writeFile(channelCreateTx, cctBytes, 0640)
+	if err != nil {
+		return fmt.Errorf("error writing channel create transaction error: %s", err)
+	}
+
+	return nil
+}
 
 func writeFile(filename string, data []byte, perm os.FileMode) error {
 	dirPath := filepath.Dir(filename)
