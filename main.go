@@ -11,12 +11,14 @@ func main() {
 	mux.HandleFunc("/network/genesisblock", createGenesisBlock)
 	mux.HandleFunc("/network/channelcreatetx", createChannelCreateTx)
 	mux.HandleFunc("/channel/setup", setupChannel)
+	mux.HandleFunc("/channel/updateanchorpeers", updateAnchorPeers)
 	mux.HandleFunc("/chaincode/deploy", deployChaincode)
 	mux.HandleFunc("/chaincode/invoke", invokeChaincode)
 
 	mux.HandleFunc("/gm/network/genesisblock", createGenesisBlock)
 	mux.HandleFunc("/gm/network/channelcreatetx", createChannelCreateTx)
 	mux.HandleFunc("/gm/channel/setup", setupChannel)
+	mux.HandleFunc("/gm/channel/updateanchorpeers", updateAnchorPeers)
 	mux.HandleFunc("/gm/chaincode/deploy", deployChaincode)
 	mux.HandleFunc("/gm/chaincode/invoke", invokeChaincode)
 

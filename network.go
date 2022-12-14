@@ -187,24 +187,24 @@ func doCreateChannelCreateTx(sdkConfigFilePath string) error {
 
 	gp := &genesisconfig.Profile{
 		Consortium: "SampleConsortium",
-		// Policies: map[string]*genesisconfig.Policy{
-		// 	"Admins": {
-		// 		Type: "ImplicitMeta",
-		// 		Rule: "ANY Admins",
-		// 	},
-		// 	"Readers": {
-		// 		Type: "ImplicitMeta",
-		// 		Rule: "ANY Readers",
-		// 	},
-		// 	"Writers": {
-		// 		Type: "ImplicitMeta",
-		// 		Rule: "ANY Writers",
-		// 	},
-		// 	"Endorsement": {
-		// 		Type: "ImplicitMeta",
-		// 		Rule: "ANY Writers",
-		// 	},
-		// },
+		Policies: map[string]*genesisconfig.Policy{
+			"Admins": {
+				Type: "ImplicitMeta",
+				Rule: "ANY Admins",
+			},
+			"Readers": {
+				Type: "ImplicitMeta",
+				Rule: "ANY Readers",
+			},
+			"Writers": {
+				Type: "ImplicitMeta",
+				Rule: "ANY Writers",
+			},
+			"Endorsement": {
+				Type: "ImplicitMeta",
+				Rule: "ANY Writers",
+			},
+		},
 		Application: &genesisconfig.Application{
 			ACLs: map[string]string{
 				"_lifecycle/CommitChaincodeDefinition": "/Channel/Application/Writers",
@@ -247,7 +247,7 @@ func doCreateChannelCreateTx(sdkConfigFilePath string) error {
 				},
 				"Admins": {
 					Type: "ImplicitMeta",
-					Rule: "MAJORITY Admins",
+					Rule: "ANY Admins",
 				},
 			},
 			Capabilities: map[string]bool{
