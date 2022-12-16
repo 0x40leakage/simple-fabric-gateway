@@ -34,12 +34,12 @@ func NewProviderFactory() *ProviderFactory {
 // CreateCryptoSuiteProvider returns a new default implementation of BCCSP
 func (f *ProviderFactory) CreateCryptoSuiteProvider(config core.CryptoSuiteConfig) (core.CryptoSuite, error) {
 	// todo：适配多种加密算法
-	if config.SecurityProvider() != "sw" && config.SecurityProvider() != "gm" &&
+	if config.SecurityProvider() != "sw" &&
 		config.SecurityProvider() != "pkcs11" && config.SecurityProvider() != "sdf" {
 		logger.Warnf("default provider factory doesn't support '%s' crypto provider", config.SecurityProvider())
 	}
 	//cryptoSuiteProvider, err := cryptosuiteimpl.GetSuiteByConfig(config)
-	logger.Infof("start get  '%s' crypto provider", config.SecurityProvider())
+	logger.Infof("start get '%s' crypto provider", config.SecurityProvider())
 	cryptoSuiteProvider, err := multisuite.GetSuiteByConfig(config)
 	return cryptoSuiteProvider, err
 }

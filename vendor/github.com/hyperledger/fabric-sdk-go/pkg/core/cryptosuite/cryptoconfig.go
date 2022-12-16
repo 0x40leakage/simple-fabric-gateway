@@ -13,6 +13,7 @@ import (
 
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/config/lookup"
+	"github.com/hyperledger/fabric-sdk-go/pkg/util/cryptocfg"
 	"github.com/hyperledger/fabric-sdk-go/pkg/util/pathvar"
 	"github.com/spf13/cast"
 )
@@ -22,8 +23,9 @@ const (
 	defHashAlgorithm = "SHA2"
 	defLevel         = 256
 	defProvider      = "SW"
-	defPlugin        = "std"
 	defSoftVerify    = true
+
+	defX509Plugin = "ccsgm"
 )
 
 //ConfigFromBackend returns CryptoSuite config implementation for given backend
@@ -37,6 +39,7 @@ type Config struct {
 }
 
 // IsSecurityEnabled config used enable and disable security in cryptosuite
+// !!! TODO
 func (c *Config) IsSecurityEnabled() bool {
 	val, ok := c.backend.Lookup("client.BCCSP.security.enabled")
 	if !ok {
@@ -47,7 +50,17 @@ func (c *Config) IsSecurityEnabled() bool {
 
 // SecurityAlgorithm returns cryptoSuite config hash algorithm
 func (c *Config) SecurityAlgorithm() string {
-	val, ok := c.backend.Lookup("client.BCCSP.security.hashAlgorithm")
+	var fieldPath string
+	switch c.SecurityProvider() {
+	case "sw":
+		fieldPath = "client.BCCSP.SW.Hash"
+	case "pkcs11":
+		fieldPath = "client.BCCSP.PKCS11.Hash"
+	default:
+		fieldPath = "client.BCCSP.SW.Hash"
+	}
+
+	val, ok := c.backend.Lookup(fieldPath)
 	if !ok {
 		return defHashAlgorithm
 	}
@@ -56,16 +69,26 @@ func (c *Config) SecurityAlgorithm() string {
 
 // SecurityLevel returns cryptSuite config security level
 func (c *Config) SecurityLevel() int {
-	val, ok := c.backend.Lookup("client.BCCSP.security.level")
+	var fieldPath string
+	switch c.SecurityProvider() {
+	case "sw":
+		fieldPath = "client.BCCSP.SW.Security"
+	case "pkcs11":
+		fieldPath = "client.BCCSP.PKCS11.Security"
+	default:
+		fieldPath = "client.BCCSP.SW.Security"
+	}
+
+	val, ok := c.backend.Lookup(fieldPath)
 	if !ok {
 		return defLevel
 	}
 	return cast.ToInt(val)
 }
 
-//SecurityProvider provider SW or PKCS11
+// SecurityProvider provider SW, PKCS11 or SDF
 func (c *Config) SecurityProvider() string {
-	val, ok := c.backend.Lookup("client.BCCSP.security.default.provider")
+	val, ok := c.backend.Lookup("client.BCCSP.Default")
 	if !ok {
 		return strings.ToLower(defProvider)
 	}
@@ -73,15 +96,17 @@ func (c *Config) SecurityProvider() string {
 }
 
 //SecurityPlugin plugin std or ccsgm
+// !!! TODO
 func (c *Config) SecurityPlugin() string {
-	val, ok := c.backend.Lookup("client.BCCSP.security.x509PluginType")
-	if !ok {
-		return strings.ToLower(defPlugin)
-	}
-	return strings.ToLower(cast.ToString(val))
+	// val, ok := c.backend.Lookup("client.BCCSP.security.x509PluginType")
+	// if !ok {
+	// 	return strings.ToLower(defX509Plugin)
+	// }
+	return strings.ToLower(defX509Plugin)
 }
 
-//SoftVerify flag
+// SoftVerify flag
+// !!! TODO
 func (c *Config) SoftVerify() bool {
 	val, ok := c.backend.Lookup("client.BCCSP.security.softVerify")
 	if !ok {
@@ -90,9 +115,10 @@ func (c *Config) SoftVerify() bool {
 	return cast.ToBool(val)
 }
 
-//SecurityProviderLibPath will be set only if provider is PKCS11
+// SecurityProviderLibPath will be set only if provider is PKCS11
+// !!! TODO
 func (c *Config) SecurityProviderLibPath() string {
-	configuredLibs := c.backend.GetString("client.BCCSP.security.library")
+	configuredLibs := c.backend.GetString("client.BCCSP.PKCS11.Library")
 	libPaths := strings.Split(configuredLibs, ",")
 	logger.Debugf("Configured BCCSP Lib Paths %s", libPaths)
 	var lib string
@@ -112,40 +138,49 @@ func (c *Config) SecurityProviderLibPath() string {
 
 //SecurityProviderPin will be set only if provider is PKCS11
 func (c *Config) SecurityProviderPin() string {
-	return c.backend.GetString("client.BCCSP.security.pin")
+	return c.backend.GetString("client.BCCSP.PKCS11.Pin")
 }
 
 //SecurityProviderLabel will be set only if provider is PKCS11
 func (c *Config) SecurityProviderLabel() string {
-	return c.backend.GetString("client.BCCSP.security.label")
+	return c.backend.GetString("client.BCCSP.PKCS11.Label")
 }
 
 func (c *Config) SecurityProviderAlgorithm() string {
-	return c.backend.GetString("client.BCCSP.security.algorithm")
+	sa := c.backend.GetString("client.BCCSP.PKCS11.SignatureAlgorithm")
+
+	// !!! TODO temporary converter, REMOVE LATER
+	if sa == cryptocfg.SignatureAlgorithmGM {
+		sa = "GM"
+	} else {
+		sa = "SW"
+	}
+	return sa
 }
 
 // KeyStorePath returns the keystore path used by BCCSP
+// !!! TODO
 func (c *Config) KeyStorePath() string {
 	keystorePath := pathvar.Subst(c.backend.GetString("client.credentialStore.cryptoStore.path"))
 	return filepath.Join(keystorePath, "keystore")
 }
 
 func (c *Config) SecurityImplType() string {
-	return c.backend.GetString("client.BCCSP.security.implType")
+	return c.backend.GetString("client.BCCSP.SW.Vendor")
 }
 
 func (c *Config) SecurityLibrary() string {
-	return c.backend.GetString("client.BCCSP.security.library")
+	return c.backend.GetString("client.BCCSP.SW.XIN_AN.Library")
 }
 
 func (c *Config) SecurityIP() string {
-	return c.backend.GetString("client.BCCSP.security.ip")
+	return c.backend.GetString("client.BCCSP.SW.XIN_AN.IP")
 }
 
 func (c *Config) SecurityPort() string {
-	return c.backend.GetString("client.BCCSP.security.port")
+	return c.backend.GetString("client.BCCSP.SW.XIN_AN.Port")
 }
 
 func (c *Config) SecurityPassword() string {
-	return c.backend.GetString("client.BCCSP.security.password")
+	return c.backend.GetString("client.BCCSP.SW.XIN_AN.Password")
 }

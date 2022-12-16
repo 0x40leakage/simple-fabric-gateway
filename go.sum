@@ -2,8 +2,8 @@
 192.168.8.1/hyperledger/ccs-gm v1.0.0-alpha1-3-yx/go.mod h1:NYt3Izjky1wLk/1peAiE6N8dSlvrPhtk8HiNCqzIRPU=
 192.168.8.1/hyperledger/fabric-protos-go v0.0.0-20220708032305-eae77831a89b h1:dwfildeG+CjwSHQGEtTcvEx5+hCclhsX6RyHczb1uzI=
 192.168.8.1/hyperledger/fabric-protos-go v0.0.0-20220708032305-eae77831a89b/go.mod h1:xVYTjK4DtZRBxZ2D9aE4y6AbLaPwue2o/criQyQbVD0=
-192.168.8.1/hyperledger/fabric-sdk-go v1.4.11-beta1-yx.0.20221201085820-5e524107754f h1:F9AKWW8tsPXx3Ui2N4IVk40g+yXXdIlZStE+w/0bP9s=
-192.168.8.1/hyperledger/fabric-sdk-go v1.4.11-beta1-yx.0.20221201085820-5e524107754f/go.mod h1:mEvpQD8vUqYb4gmJK0judEBzbQZYx0tmhdv8g230uSQ=
+192.168.8.1/hyperledger/fabric-sdk-go v1.4.11-beta1-yx.0.20221216091646-afb44cf98751 h1:Ae0fTxynFMdAieV0LiKSVD5RX644hyFsCdtltr/dFOg=
+192.168.8.1/hyperledger/fabric-sdk-go v1.4.11-beta1-yx.0.20221216091646-afb44cf98751/go.mod h1:mEvpQD8vUqYb4gmJK0judEBzbQZYx0tmhdv8g230uSQ=
 192.168.8.1/hyperledger/grpc v1.29.1-alpha1-1-yx.0.20211124084356-af5d75c99c51 h1:sk1wGJhIKLRS1BIPXKWJ6Vlrph21Yp+2C5dWnbbC7/4=
 192.168.8.1/hyperledger/grpc v1.29.1-alpha1-1-yx.0.20211124084356-af5d75c99c51/go.mod h1:4PkjLZPckczKRgIZbS79/AGN+ZiHK5fjSn5ce+Tdcu0=
 bitbucket.org/liamstask/goose v0.0.0-20150115234039-8488cc47d90c/go.mod h1:hSVuE3qU7grINVSwrmzHfpg9k87ALBk+XaualNyUzI4=

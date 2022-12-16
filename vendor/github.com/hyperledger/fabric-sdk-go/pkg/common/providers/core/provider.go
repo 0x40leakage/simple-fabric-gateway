@@ -12,13 +12,16 @@ type CryptoSuiteConfig interface {
 	SecurityAlgorithm() string
 	SecurityLevel() int
 	SecurityProvider() string
-	SecurityPlugin() string
 	SoftVerify() bool
 	SecurityProviderLibPath() string
 	SecurityProviderPin() string
 	SecurityProviderLabel() string
-	SecurityProviderAlgorithm() string
 	KeyStorePath() string
+
+	// ========================
+
+	SecurityPlugin() string
+	SecurityProviderAlgorithm() string
 
 	// configuration items for GM
 	SecurityImplType() string

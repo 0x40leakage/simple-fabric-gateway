@@ -203,6 +203,7 @@ github.com/golang/mock/gomock
 github.com/golang/mock/mockgen
 github.com/golang/mock/mockgen/model
 # github.com/golang/protobuf v1.5.0
+## explicit
 github.com/golang/protobuf/internal/gengogrpc
 github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
@@ -355,7 +356,7 @@ github.com/hyperledger/fabric-protos-go/orderer/etcdraft
 github.com/hyperledger/fabric-protos-go/orderer/ybft
 github.com/hyperledger/fabric-protos-go/peer
 github.com/hyperledger/fabric-protos-go/peer/lifecycle
-# github.com/hyperledger/fabric-sdk-go v1.0.0 => 192.168.8.1/hyperledger/fabric-sdk-go v1.4.11-beta1-yx.0.20221201085820-5e524107754f
+# github.com/hyperledger/fabric-sdk-go v1.0.0 => 192.168.8.1/hyperledger/fabric-sdk-go v1.4.11-beta1-yx.0.20221216091646-afb44cf98751
 ## explicit
 github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib
 github.com/hyperledger/fabric-sdk-go/internal/github.com/hyperledger/fabric-ca/lib/attrmgr
@@ -464,7 +465,6 @@ github.com/hyperledger/fabric-sdk-go/pkg/core/config/cryptoutil
 github.com/hyperledger/fabric-sdk-go/pkg/core/config/endpoint
 github.com/hyperledger/fabric-sdk-go/pkg/core/config/lookup
 github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite
-github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/gm
 github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/multisuite
 github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/pkcs11
 github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/sdf
@@ -524,6 +524,7 @@ github.com/hyperledger/fabric-sdk-go/pkg/util/concurrent/futurevalue
 github.com/hyperledger/fabric-sdk-go/pkg/util/concurrent/lazycache
 github.com/hyperledger/fabric-sdk-go/pkg/util/concurrent/lazyref
 github.com/hyperledger/fabric-sdk-go/pkg/util/concurrent/rollingcounter
+github.com/hyperledger/fabric-sdk-go/pkg/util/cryptocfg
 github.com/hyperledger/fabric-sdk-go/pkg/util/pathvar
 github.com/hyperledger/fabric-sdk-go/pkg/util/test
 github.com/hyperledger/fabric-sdk-go/test/metadata

@@ -80,14 +80,24 @@ client:
 
   # [Optional] BCCSP config for the client. Used by GO SDK.
   BCCSP:
-    security:
-      enabled: true
-      default:
-        provider: "SW"
-      hashAlgorithm: "SM3"
-      x509PluginType: "SM"
-      softVerify: true
-      level: 256
+    # security:
+    #   enabled: true
+    #   default:
+    #     provider: "SW"
+    #   hashAlgorithm: "SM3"
+    #   x509PluginType: "SM"
+    #   softVerify: true
+    #   level: 256
+
+    Default: SW
+    SW:
+      # SHA2 或 SM3
+      Hash: SM3
+      # ECDSAWithSHA256 或 SM2WithSM3
+      SignatureAlgorithm: SM2WithSM3
+      # 具体实现的算法名称：ccsgm, xin_an
+      # 国密算法需要此项配置
+      Vendor: ccsgm
 
   tlsCerts:
     # [Optional]. Use system certificate pool when connecting to peers, orderers (for negotiating TLS) Default: false

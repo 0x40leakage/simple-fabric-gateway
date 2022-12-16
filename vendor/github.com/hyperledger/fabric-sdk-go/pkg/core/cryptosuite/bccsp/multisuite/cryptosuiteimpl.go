@@ -8,7 +8,6 @@ package multisuite
 
 import (
 	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/core"
-	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/gm"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/pkcs11"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/sdf"
 	"github.com/hyperledger/fabric-sdk-go/pkg/core/cryptosuite/bccsp/sw"
@@ -20,20 +19,22 @@ var (
 	Opts string
 	//Algorithm used to judge the choice of SW or GM
 	Algorithm string
-	//Algorithm used to judge the choice of SW or GM
-	ImplType string
+
+	// Algorithm used to judge the choice of SW or GM
+	// ImplType string
 )
 
 //GetSuiteByConfig returns cryptosuite adaptor for bccsp loaded according to given config
 func GetSuiteByConfig(config core.CryptoSuiteConfig) (core.CryptoSuite, error) {
 	switch config.SecurityProvider() {
 	case "sw":
-		Opts = "SW"
+		// swVendor := config.SecurityImplType()
+		// if !cryptocfg.IsValidSWGMVendor(swVendor) {
+		// 	Opts = "SW"
+		// } else {
+		// 	Opts = "GM"
+		// }
 		return sw.GetSuiteByConfig(config)
-	case "gm":
-		Opts = "GM"
-		ImplType = config.SecurityImplType()
-		return gm.GetSuiteByConfig(config)
 	case "pkcs11":
 		Opts = "PKCS11"
 		Algorithm = config.SecurityProviderAlgorithm()
