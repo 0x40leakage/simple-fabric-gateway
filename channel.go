@@ -90,9 +90,9 @@ func doSetupChannel(sdkConfigFilePath string) error {
 func updateAnchorPeers(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if strings.HasPrefix(r.RequestURI, "/gm") {
-		err = doUpdateCRLOfChannelConfig(gmConfigFilePath)
+		err = doUpdateAnchorPeers(gmConfigFilePath)
 	} else {
-		err = doUpdateCRLOfChannelConfig(configFilePath)
+		err = doUpdateAnchorPeers(configFilePath)
 	}
 	if err != nil {
 		io.WriteString(w, err.Error())
@@ -101,7 +101,7 @@ func updateAnchorPeers(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "anchor peer channel config updated")
 }
 
-func doUpdateCRLOfChannelConfig(sdkConfigFilePath string) error {
+func doUpdateAnchorPeers(sdkConfigFilePath string) error {
 	sdk, err := fabsdk.New(config.FromFile(sdkConfigFilePath))
 	if err != nil {
 		return err
@@ -262,7 +262,7 @@ func doUpdateCRLOfChannelConfig(sdkConfigFilePath string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%#v\n", *apur)
+	// fmt.Printf("%#v\n", *apur)
 	apurEnvBytes, err := proto.Marshal(apur)
 	if err != nil {
 		return err
